@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
@@ -39,8 +40,18 @@ namespace ChefKeys
 
         public static event Action<string> KeyRemapped;
 
+        private static readonly Dictionary<int, KeyPressActionRecord> registeredHotkeys;
+
+
+        private record KeyPressActionRecord(int vk_code, Func<IntPtr, int, bool> HandleKeyPress);
+
         static ChefKeysManager()
         {
+            registeredHotkeys = new Dictionary<int, KeyPressActionRecord>() 
+            {
+                { VK_LWIN, new KeyPressActionRecord(VK_LWIN, HandleWinKeyPress) }
+            };
+
             _proc = HookCallback;
         }
 
@@ -74,49 +85,73 @@ namespace ChefKeys
             {
                 int vkCode = Marshal.ReadInt32(lParam);
 
-                if (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN)
+                var HandleKeyPressFunc = registeredHotkeys.GetValueOrDefault(VK_LWIN).HandleKeyPress;
+
+                var blockKeyPress = HandleKeyPressFunc(wParam, vkCode);
+
+                if (blockKeyPress)
+                    return (IntPtr)1;
+            }
+            
+            return CallNextHookEx(_hookID, nCode, wParam, lParam);
+        }
+
+        private static bool HandleKeyPress(IntPtr wParam, int vkCode)
+        {
+            return false;
+        }
+
+        private static bool HandleWinKeyPress(IntPtr wParam, int vkCode)
+        {
+            var blockKeyPress = false;
+
+            if (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN)
+            {
+                if (vkCode == VK_LWIN)
                 {
-                    if (vkCode == VK_LWIN)
-                    {
-                        isLWinKeyDown = true;
-                        return (IntPtr)1;
-                    }
-                    else if (vkCode != VK_LWIN && isLWinKeyDown)
-                    {
-                        if (!cancel)
-                        {
-                            SendLWinKeyDown();
-                            cancel = true;
-                        }
-                    }
+                    isLWinKeyDown = true;
+                    
+                    blockKeyPress = true;
+                    
+                    return blockKeyPress;
                 }
-                else if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
+                else if (vkCode != VK_LWIN && isLWinKeyDown)
                 {
-                    if (vkCode == VK_LWIN)
+                    if (!cancel)
                     {
-                        if (!cancel)
-                        {
-                            SendLWinKeyDown();
-                            SendAltKeyDown();
-                            SendLWinKeyUp();
-                            isLWinKeyDown = false;
-                            SendAltKeyUp();
-
-                            KeyRemapped?.Invoke("LWin key remapped");
-
-                            return (IntPtr)1;
-                        }
-                        else
-                        {
-                            isLWinKeyDown = false;
-                            cancel = false;
-                        }
-
+                        SendLWinKeyDown();
+                        cancel = true;
                     }
                 }
             }
+            else if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
+            {
+                if (vkCode == VK_LWIN)
+                {
+                    if (!cancel)
+                    {
+                        SendLWinKeyDown();
+                        SendAltKeyDown();
+                        SendLWinKeyUp();
+                        isLWinKeyDown = false;
+                        SendAltKeyUp();
 
-            return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                        KeyRemapped?.Invoke("LWin key remapped");
+
+                        blockKeyPress = true;
+
+                        return blockKeyPress;
+                    }
+                    else
+                    {
+                        isLWinKeyDown = false;
+                        cancel = false;
+                    }
+
+                }
+            }
+
+            return blockKeyPress;
         }
 
         private static void SendLWinKeyDown()

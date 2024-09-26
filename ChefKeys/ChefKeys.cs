@@ -61,7 +61,17 @@ namespace ChefKeys
 
         private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
-            return CallNextHookEx(_hookID, nCode, wParam, lParam);
-        }
+            if (nCode >= 0)
+            {
+                int vkCode = Marshal.ReadInt32(lParam);
+
+                if (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN)
+                {
+                    if (vkCode == VK_LWIN)
+                    {
+                        return (IntPtr)1;
+                    }
+                }
+            }
     }
 }

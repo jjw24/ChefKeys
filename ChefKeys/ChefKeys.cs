@@ -13,9 +13,13 @@ namespace ChefKeys
         private const int WM_KEYUP = 0x0101;
         private const int WM_SYSKEYDOWN = 0x0104;
         private const int WM_SYSKEYUP = 0x0105;
+        private const int VK_LWIN = 0x5B;
+        private const int VK_LALT = 0xA4;
+        private const uint KEYEVENTF_KEYUP = 0x0002;
 
         private static LowLevelKeyboardProc _proc;
         private static IntPtr _hookID = IntPtr.Zero;
+        private static bool _isSimulatingKeyPress = false;
 
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
@@ -32,6 +36,8 @@ namespace ChefKeys
 
         [DllImport("user32.dll")]
         private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+        public static event Action<string> KeyRemapped;
 
         static ChefKeys()
         {
@@ -59,20 +65,86 @@ namespace ChefKeys
 
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
+        private static bool isLWinKeyDown = false;
+        private static bool isOtherKeyDown = false;
+        private static bool cancel = false;
         private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
-            if (nCode >= 0)
+            if (nCode >= 0 && !_isSimulatingKeyPress)
             {
                 int vkCode = Marshal.ReadInt32(lParam);
 
-                if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
+                if (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN)
                 {
                     if (vkCode == VK_LWIN)
                     {
+                        isLWinKeyDown = true;
                         return (IntPtr)1;
+                    }
+                    else if (vkCode != VK_LWIN && isLWinKeyDown)
+                    {
+                        if (!cancel)
+                        {
+                            SendLWinKeyDown();
+                            cancel = true;
+                        }
+                    }
+                }
+                else if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
+                {
+                    if (vkCode == VK_LWIN)
+                    {
+                        if (!cancel)
+                        {
+                            SendLWinKeyDown();
+                            SendAltKeyDown();
+                            SendLWinKeyUp();
+                            isLWinKeyDown = false;
+                            SendAltKeyUp();
+
+                            KeyRemapped?.Invoke("LWin key remapped");
+
+                            return (IntPtr)1;
+                        }
+                        else
+                        {
+                            isLWinKeyDown = false;
+                            cancel = false;
+                        }
+
                     }
                 }
             }
+
+            return CallNextHookEx(_hookID, nCode, wParam, lParam);
+        }
+
+        private static void SendLWinKeyDown()
+        {
+            _isSimulatingKeyPress = true;
+            keybd_event(VK_LWIN, 0, 0, UIntPtr.Zero);
+            _isSimulatingKeyPress = false;
+        }
+
+        private static void SendAltKeyDown()
+        {
+            _isSimulatingKeyPress = true;
+            keybd_event(VK_LALT, 0, 0, UIntPtr.Zero);
+            _isSimulatingKeyPress = false;
+        }
+
+        private static void SendLWinKeyUp()
+        {
+            _isSimulatingKeyPress = true;
+            keybd_event(VK_LWIN, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            _isSimulatingKeyPress = false;
+        }
+
+        private static void SendAltKeyUp()
+        {
+            _isSimulatingKeyPress = true;
+            keybd_event(VK_LALT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            _isSimulatingKeyPress = false;
         }
     }
 }

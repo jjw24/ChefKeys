@@ -65,7 +65,7 @@ namespace ChefKeys
             {
                 int vkCode = Marshal.ReadInt32(lParam);
 
-                if (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN)
+                if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
                 {
                     if (vkCode == VK_LWIN)
                     {
@@ -73,5 +73,6 @@ namespace ChefKeys
                     }
                 }
             }
+        }
     }
 }

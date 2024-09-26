@@ -6,7 +6,7 @@ using System.Windows.Input;
 
 namespace ChefKeys
 {
-    public static class ChefKeys
+    public static class ChefKeysManager
     {
         private const int WH_KEYBOARD_LL = 13;
         private const int WM_KEYDOWN = 0x0100;
@@ -39,7 +39,7 @@ namespace ChefKeys
 
         public static event Action<string> KeyRemapped;
 
-        static ChefKeys()
+        static ChefKeysManager()
         {
             _proc = HookCallback;
         }

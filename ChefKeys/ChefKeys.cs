@@ -43,13 +43,18 @@ namespace ChefKeys
         private static readonly Dictionary<int, KeyPressActionRecord> registeredHotkeys;
 
 
-        private record KeyPressActionRecord(int vk_code, Func<IntPtr, int, bool> HandleKeyPress);
+        private record KeyPressActionRecord() 
+        {
+            internal int vk_code { get; set; }
+            internal Func<IntPtr, int, bool> HandleKeyPress { get; set; }
+        };
 
         static ChefKeysManager()
         {
-            registeredHotkeys = new Dictionary<int, KeyPressActionRecord>() 
+            registeredHotkeys = new Dictionary<int, KeyPressActionRecord>()
             {
-                { VK_LWIN, new KeyPressActionRecord(VK_LWIN, HandleWinKeyPress) }
+                { VK_LWIN, new KeyPressActionRecord {vk_code = VK_LWIN, HandleKeyPress = HandleWinKeyPress } },
+                { VK_LALT, new KeyPressActionRecord{ vk_code = VK_LALT, HandleKeyPress = HandleKeyPress } }
             };
 
             _proc = HookCallback;
@@ -79,15 +84,34 @@ namespace ChefKeys
         private static bool isLWinKeyDown = false;
         private static bool isOtherKeyDown = false;
         private static bool cancel = false;
+        private static bool otherKeyCancel = false;
+        private static bool registeredKeyDown = false;
+
         private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
             if (nCode >= 0 && !_isSimulatingKeyPress)
             {
                 int vkCode = Marshal.ReadInt32(lParam);
 
-                var HandleKeyPressFunc = registeredHotkeys.GetValueOrDefault(VK_LWIN).HandleKeyPress;
+                var record = new KeyPressActionRecord();
 
-                var blockKeyPress = HandleKeyPressFunc(wParam, vkCode);
+                if (!registeredHotkeys.TryGetValue(vkCode, out KeyPressActionRecord keyRecord_non) && !isLWinKeyDown)
+                {
+                    record.HandleKeyPress = HandleNonRegisteredKeys; 
+                }
+                else if (isLWinKeyDown)
+                {
+                    registeredHotkeys.TryGetValue(VK_LWIN, out KeyPressActionRecord keyRecord);
+                    record = keyRecord;
+                }
+                else
+                {
+                    registeredHotkeys.TryGetValue(vkCode, out KeyPressActionRecord keyRecord);
+                    record = keyRecord;
+                }
+
+
+                var blockKeyPress = record.HandleKeyPress(wParam, vkCode);
 
                 if (blockKeyPress)
                     return (IntPtr)1;
@@ -98,16 +122,51 @@ namespace ChefKeys
 
         private static bool HandleKeyPress(IntPtr wParam, int vkCode)
         {
+            if ((wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
+            {
+                if (isOtherKeyDown)
+                    otherKeyCancel = true;
+                
+                registeredKeyDown = true;
+            }
+
+            if ((wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP))//< ---here removed !isOtherKeyDown
+            {
+                if (!otherKeyCancel)
+                {
+                    KeyRemapped?.Invoke("");
+                }
+                
+                otherKeyCancel = false;
+                registeredKeyDown = false;
+            }
+
+            return false;
+        }
+
+        private static bool HandleNonRegisteredKeys(IntPtr wParam, int vkCode)
+        {
+            if (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN)
+                isOtherKeyDown = true;
+
+            if ((wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP))
+                isOtherKeyDown = false;
+
+            if (registeredKeyDown)
+                otherKeyCancel = true;
+
             return false;
         }
 
         private static bool HandleWinKeyPress(IntPtr wParam, int vkCode)
         {
+            var keyRegistered = registeredHotkeys.TryGetValue(vkCode, out KeyPressActionRecord keyRecord);
+
             var blockKeyPress = false;
 
             if (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN)
             {
-                if (vkCode == VK_LWIN)
+                if (keyRegistered)
                 {
                     isLWinKeyDown = true;
                     
@@ -115,7 +174,7 @@ namespace ChefKeys
                     
                     return blockKeyPress;
                 }
-                else if (vkCode != VK_LWIN && isLWinKeyDown)
+                else if (!keyRegistered && isLWinKeyDown)
                 {
                     if (!cancel)
                     {
@@ -126,7 +185,7 @@ namespace ChefKeys
             }
             else if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
             {
-                if (vkCode == VK_LWIN)
+                if (keyRegistered)
                 {
                     if (!cancel)
                     {

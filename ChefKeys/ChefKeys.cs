@@ -40,22 +40,25 @@ namespace ChefKeys
 
         public static event Action<string> KeyRemapped;
 
-        private static readonly Dictionary<int, KeyPressActionRecord> registeredHotkeys;
-
-
-        private record KeyPressActionRecord() 
+        private record KeyPressActionRecord()
         {
             internal int vk_code { get; set; }
             internal Func<IntPtr, int, bool> HandleKeyPress { get; set; }
         };
 
+        private static readonly Dictionary<int, KeyPressActionRecord> registeredHotkeys;
+
+        private static readonly KeyPressActionRecord nonRegisteredKeyRecord; 
+
         static ChefKeysManager()
         {
             registeredHotkeys = new Dictionary<int, KeyPressActionRecord>()
             {
-                { VK_LWIN, new KeyPressActionRecord {vk_code = VK_LWIN, HandleKeyPress = HandleWinKeyPress } },
-                { VK_LALT, new KeyPressActionRecord{ vk_code = VK_LALT, HandleKeyPress = HandleKeyPress } }
+                { VK_LWIN, new KeyPressActionRecord {vk_code = VK_LWIN, HandleKeyPress = HandleRegisteredKeyPress } },
+                { VK_LALT, new KeyPressActionRecord{ vk_code = VK_LALT, HandleKeyPress = HandleRegisteredKeyPress } }
             };
+
+            nonRegisteredKeyRecord = new KeyPressActionRecord { vk_code = 0, HandleKeyPress = HandleNonRegisteredKeyPress };
 
             _proc = HookCallback;
         }
@@ -93,20 +96,11 @@ namespace ChefKeys
             {
                 int vkCode = Marshal.ReadInt32(lParam);
 
-                var record = new KeyPressActionRecord();
+                var keyRecord = !registeredHotkeys.TryGetValue(vkCode, out KeyPressActionRecord registeredKeyRecord)
+                                ? nonRegisteredKeyRecord
+                                : registeredKeyRecord;
 
-                if (!registeredHotkeys.TryGetValue(vkCode, out KeyPressActionRecord keyRecord_non))
-                {
-                    record.HandleKeyPress = HandleNonRegisteredKeys; 
-                }
-                else
-                {
-                    registeredHotkeys.TryGetValue(vkCode, out KeyPressActionRecord keyRecord);
-                    record = keyRecord;
-                }
-
-
-                var blockKeyPress = record.HandleKeyPress(wParam, vkCode);
+                var blockKeyPress = keyRecord.HandleKeyPress(wParam, vkCode);
 
                 if (blockKeyPress)
                     return (IntPtr)1;
@@ -115,31 +109,54 @@ namespace ChefKeys
             return CallNextHookEx(_hookID, nCode, wParam, lParam);
         }
 
-        private static bool HandleKeyPress(IntPtr wParam, int vkCode)
+        private static bool HandleRegisteredKeyPress(IntPtr wParam, int vkCode)
         {
-            if ((wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
+            if (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN)
             {
                 if (isOtherKeyDown)
                     otherKeyCancel = true;
-                
+
+                if (vkCode == VK_LWIN)
+                    isLWinKeyDown = true;
+
                 registeredKeyDown = true;
             }
 
-            if ((wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP))
+            if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
             {
-                if (!otherKeyCancel)
-                {
-                    KeyRemapped?.Invoke("");
-                }
-                
-                otherKeyCancel = false;
                 registeredKeyDown = false;
+
+                if (vkCode == VK_LWIN)
+                {
+                    if (!otherKeyCancel && isLWinKeyDown)
+                    {
+                        SendAltKeyDown();
+                        SendLWinKeyUp();
+                        isLWinKeyDown = false;
+                        SendAltKeyUp();
+
+                        KeyRemapped?.Invoke("LWin key remapped");
+
+                        return true;
+                    }
+
+                    isLWinKeyDown = false;
+                    otherKeyCancel = false;
+
+                    return false;
+                }
+
+                if (!otherKeyCancel)
+                    KeyRemapped?.Invoke("");
+
+                otherKeyCancel = false;
+
             }
 
             return false;
         }
 
-        private static bool HandleNonRegisteredKeys(IntPtr wParam, int vkCode)
+        private static bool HandleNonRegisteredKeyPress(IntPtr wParam, int vkCode)
         {
             if (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN)
                 isOtherKeyDown = true;
@@ -149,41 +166,6 @@ namespace ChefKeys
 
             if (registeredKeyDown)
                 otherKeyCancel = true;
-
-            return false;
-        }
-
-        private static bool HandleWinKeyPress(IntPtr wParam, int vkCode)
-        {
-            if ((wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
-            {
-                if (isOtherKeyDown)
-                    otherKeyCancel = true;
-
-                isLWinKeyDown = true;
-
-                registeredKeyDown = true;
-            }
-
-            if ((wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP))
-            {
-                if (!otherKeyCancel && isLWinKeyDown)
-                {
-                    SendAltKeyDown();
-                    SendLWinKeyUp();
-                    isLWinKeyDown = false;
-                    registeredKeyDown = false;
-                    SendAltKeyUp();
-
-                    KeyRemapped?.Invoke("LWin key remapped");
-
-                    return true;
-                }
-
-                isLWinKeyDown = false;
-                otherKeyCancel = false;
-                registeredKeyDown = false;
-            }
 
             return false;
         }

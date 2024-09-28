@@ -15,6 +15,7 @@ namespace ChefKeys
         private const int WM_SYSKEYDOWN = 0x0104;
         private const int WM_SYSKEYUP = 0x0105;
         private const int VK_LWIN = 0x5B;
+        private const int VK_RWIN = 0x5C;
         private const int VK_LALT = 0xA4;
         private const uint KEYEVENTF_KEYUP = 0x0002;
 
@@ -116,7 +117,7 @@ namespace ChefKeys
                 if (isOtherKeyDown)
                     otherKeyCancel = true;
 
-                if (vkCode == VK_LWIN)
+                if (vkCode == VK_LWIN || vkCode == VK_RWIN)
                     isLWinKeyDown = true;
 
                 registeredKeyDown = true;
@@ -126,7 +127,7 @@ namespace ChefKeys
             {
                 registeredKeyDown = false;
 
-                if (vkCode == VK_LWIN)
+                if (vkCode == VK_LWIN || vkCode == VK_RWIN)
                 {
                     if (!otherKeyCancel && isLWinKeyDown)
                     {

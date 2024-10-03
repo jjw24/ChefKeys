@@ -17,6 +17,10 @@ namespace ChefKeys
         private const int VK_LWIN = 0x5B;
         private const int VK_RWIN = 0x5C;
         private const int VK_LALT = 0xA4;
+        private const int VK_LCTRL = 0xA2;
+        private const int VK_LSHIFT = 0xA0;
+        private const int VK_SHIFT = 0x10;
+        private const int VK_Z = 0x5A;
         private const uint KEYEVENTF_KEYUP = 0x0002;
 
         private static LowLevelKeyboardProc _proc;
@@ -39,12 +43,25 @@ namespace ChefKeys
         [DllImport("user32.dll")]
         private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
+        [DllImport("user32.dll", CharSet = CharSet.Auto, ExactSpelling = true, CallingConvention = CallingConvention.Winapi)]
+        private static extern short GetKeyState(int keyCode);
+
+        [DllImport("user32.dll")]
+        public static extern short GetAsyncKeyState(int vKey);
+
         public static event Action<string> KeyRemapped;
 
         private record KeyPressActionRecord()
         {
             internal int vk_code { get; set; }
-            internal Func<IntPtr, int, bool> HandleKeyPress { get; set; }
+
+            internal int vkCodeCombo0 { get; set; } = 0;
+
+            internal int vkCodeCombo1 { get; set; } = 0;
+
+            internal int vkCodeCombo2 { get; set; } = 0;
+
+            internal Func<IntPtr, int, int, int, int, bool> HandleKeyPress { get; set; }
         };
 
         private static readonly Dictionary<int, KeyPressActionRecord> registeredHotkeys;
@@ -55,10 +72,14 @@ namespace ChefKeys
         {
             registeredHotkeys = new Dictionary<int, KeyPressActionRecord>()
             {
-                { VK_LWIN, new KeyPressActionRecord {vk_code = VK_LWIN, HandleKeyPress = HandleRegisteredKeyPress } },
-                { VK_LALT, new KeyPressActionRecord{ vk_code = VK_LALT, HandleKeyPress = HandleRegisteredKeyPress } }
+                //{ VK_LCTRL, new KeyPressActionRecord {vk_code = VK_LCTRL, HandleKeyPress = HandleRegisteredSingleKeyPress } },
+                { VK_LWIN, new KeyPressActionRecord {vk_code = VK_LWIN, HandleKeyPress = HandleRegisteredSingleKeyPress } },
+                { VK_Z, new KeyPressActionRecord{ vk_code = VK_Z, HandleKeyPress = HandleRegisteredComboKeyPress, vkCodeCombo0 = VK_LSHIFT, vkCodeCombo1 = VK_LALT, vkCodeCombo2 = VK_LCTRL } },
+                { VK_LCTRL, new KeyPressActionRecord{ vk_code = VK_LCTRL, HandleKeyPress = HandleRegisteredComboKeyPress, vkCodeCombo0 = VK_LALT, vkCodeCombo1 = VK_LSHIFT, vkCodeCombo2 = VK_Z } },
+                { VK_LALT, new KeyPressActionRecord{ vk_code = VK_LALT, HandleKeyPress = HandleRegisteredComboKeyPress, vkCodeCombo0 = VK_LCTRL, vkCodeCombo1 = VK_LSHIFT, vkCodeCombo2 = VK_Z } },
+                { VK_LSHIFT, new KeyPressActionRecord{ vk_code = VK_LSHIFT, HandleKeyPress = HandleRegisteredComboKeyPress, vkCodeCombo0 = VK_LALT, vkCodeCombo1 = VK_LCTRL, vkCodeCombo2 = VK_Z } }
             };
-
+            
             nonRegisteredKeyRecord = new KeyPressActionRecord { vk_code = 0, HandleKeyPress = HandleNonRegisteredKeyPress };
 
             _proc = HookCallback;
@@ -86,10 +107,11 @@ namespace ChefKeys
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
         private static bool isLWinKeyDown = false;
-        private static bool isOtherKeyDown = false;
+        private static bool nonRegisteredKeyDown = false;
         private static bool cancel = false;
-        private static bool otherKeyCancel = false;
-        private static bool registeredKeyDown = false;
+        private static bool cancelAction = false;
+        private static bool registeredSingleKeyDown = false;
+        private static bool registeredComboKeyDown = false;
 
         private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
@@ -101,7 +123,7 @@ namespace ChefKeys
                                 ? nonRegisteredKeyRecord
                                 : registeredKeyRecord;
 
-                var blockKeyPress = keyRecord.HandleKeyPress(wParam, vkCode);
+                var blockKeyPress = keyRecord.HandleKeyPress(wParam, vkCode, keyRecord.vkCodeCombo0, keyRecord.vkCodeCombo1, keyRecord.vkCodeCombo2);
 
                 if (blockKeyPress)
                     return (IntPtr)1;
@@ -110,26 +132,22 @@ namespace ChefKeys
             return CallNextHookEx(_hookID, nCode, wParam, lParam);
         }
 
-        private static bool HandleRegisteredKeyPress(IntPtr wParam, int vkCode)
+        private static bool HandleRegisteredSingleKeyPress(IntPtr wParam, int vkCode, int vkCodeCombo0 = 0, int vkCodeCombo1 = 0, int vkCodeCombo2 = 0)
         {
             if (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN)
             {
-                if (isOtherKeyDown)
-                    otherKeyCancel = true;
+                if (nonRegisteredKeyDown || registeredComboKeyDown)
+                    cancelAction = true;
 
                 if (vkCode == VK_LWIN || vkCode == VK_RWIN)
                     isLWinKeyDown = true;
-
-                registeredKeyDown = true;
             }
 
             if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
             {
-                registeredKeyDown = false;
-
                 if (vkCode == VK_LWIN || vkCode == VK_RWIN)
                 {
-                    if (!otherKeyCancel && isLWinKeyDown)
+                    if (!cancelAction && isLWinKeyDown)
                     {
                         SendAltKeyDown();
                         SendLWinKeyUp();
@@ -142,31 +160,68 @@ namespace ChefKeys
                     }
 
                     isLWinKeyDown = false;
-                    otherKeyCancel = false;
+                    cancelAction = false;
 
                     return false;
                 }
 
-                if (!otherKeyCancel)
+                if (!cancelAction)
                     KeyRemapped?.Invoke("");
 
-                otherKeyCancel = false;
-
+                cancelAction = false;
             }
 
             return false;
         }
 
-        private static bool HandleNonRegisteredKeyPress(IntPtr wParam, int vkCode)
+        private static bool HandleRegisteredComboKeyPress(IntPtr wParam, int vkCode, int vkCodeCombo0 = 0, int vkCodeCombo1 = 0, int vkCodeCombo2 = 0)
         {
             if (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN)
-                isOtherKeyDown = true;
+            {
+                if (nonRegisteredKeyDown)
+                    cancelAction = true;
 
-            if ((wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP))
-                isOtherKeyDown = false;
+                registeredComboKeyDown = true;
+            }
 
-            if (registeredKeyDown)
-                otherKeyCancel = true;
+            if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
+            {
+                registeredComboKeyDown = false;
+
+                if (cancelAction)
+                {
+                    cancelAction = false;
+                    return false;
+                }
+
+                if (vkCodeCombo0 > 0)
+                {
+                    var triggerCombo = true;
+
+                    if ((GetAsyncKeyState(vkCodeCombo0) & 0x8000) == 0)
+                        triggerCombo = false;
+
+                    if (vkCodeCombo1 > 0 && ((GetAsyncKeyState(vkCodeCombo1) & 0x8000) == 0))
+                        triggerCombo = false;
+
+                    if (vkCodeCombo2 > 0 && ((GetAsyncKeyState(vkCodeCombo2) & 0x8000) == 0))
+                        triggerCombo = false;
+
+                    if (triggerCombo)
+                        KeyRemapped?.Invoke("");
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HandleNonRegisteredKeyPress(IntPtr wParam, int vkCode, int vkCodeCombo0 = 0, int vkCodeCombo1 = 0, int vkCodeCombo2 = 0)
+        {
+            if (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN)
+                nonRegisteredKeyDown = true;
+
+            if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
+                nonRegisteredKeyDown = false;
 
             return false;
         }

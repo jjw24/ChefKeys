@@ -181,13 +181,33 @@ namespace ChefKeys
                 {
                     var triggerCombo = true;
 
-                    if (keyRecord.vkCodeCombo0 > 0 && ((GetAsyncKeyState(keyRecord.vkCodeCombo0) & 0x8000) == 0))
-                        triggerCombo = false;
+                    var comboKeys = new Dictionary<int, string> {{ keyRecord.vk_code, string.Empty }};
 
-                    if (keyRecord.vkCodeCombo1 > 0 && ((GetAsyncKeyState(keyRecord.vkCodeCombo1) & 0x8000) == 0))
-                        triggerCombo = false;
+                    if (keyRecord.vkCodeCombo0 > 0)
+                    {
+                        comboKeys.Add(keyRecord.vkCodeCombo0, string.Empty);
 
-                    if (keyRecord.vkCodeCombo2 > 0 && ((GetAsyncKeyState(keyRecord.vkCodeCombo2) & 0x8000) == 0))
+                        if ((GetAsyncKeyState(keyRecord.vkCodeCombo0) & 0x8000) == 0)
+                            triggerCombo = false;
+                    }
+
+                    if (keyRecord.vkCodeCombo1 > 0)
+                    {
+                        comboKeys.Add(keyRecord.vkCodeCombo1, string.Empty);
+
+                        if ((GetAsyncKeyState(keyRecord.vkCodeCombo1) & 0x8000) == 0)
+                            triggerCombo = false;
+                    }
+
+                    if (keyRecord.vkCodeCombo2 > 0) 
+                    {
+                        comboKeys.Add(keyRecord.vkCodeCombo2, string.Empty);
+
+                        if ((GetAsyncKeyState(keyRecord.vkCodeCombo2) & 0x8000) == 0)
+                            triggerCombo = false;
+                    }
+
+                    if (NonComboModifierKeyPressed(comboKeys))
                         triggerCombo = false;
 
                     if (triggerCombo)
@@ -223,6 +243,35 @@ namespace ChefKeys
             // e.g. registered Ctrl down, unregistered Esc down & up, registered Ctrl up
             if (registeredKeyDown)
                 cancelAction = true;
+
+            return false;
+        }
+
+        private static bool NonComboModifierKeyPressed(Dictionary<int, string> comboKeys)
+        {
+            if (!comboKeys.ContainsKey(VK_LCTRL) && ((GetAsyncKeyState(VK_LCTRL) & 0x8000) != 0))
+                return true;
+
+            if (!comboKeys.ContainsKey(VK_RCTRL) && ((GetAsyncKeyState(VK_RCTRL) & 0x8000) != 0))
+                return true;
+
+            if (!comboKeys.ContainsKey(VK_LALT) && ((GetAsyncKeyState(VK_LALT) & 0x8000) != 0))
+                return true;
+
+            if (!comboKeys.ContainsKey(VK_RALT) && ((GetAsyncKeyState(VK_RALT) & 0x8000) != 0))
+                return true;
+
+            if (!comboKeys.ContainsKey(VK_LSHIFT) && ((GetAsyncKeyState(VK_LSHIFT) & 0x8000) != 0))
+                return true;
+
+            if (!comboKeys.ContainsKey(VK_RSHIFT) && ((GetAsyncKeyState(VK_RSHIFT) & 0x8000) != 0))
+                return true;
+
+            if (!comboKeys.ContainsKey(VK_LWIN) && ((GetAsyncKeyState(VK_LWIN) & 0x8000) != 0))
+                return true;
+
+            if (!comboKeys.ContainsKey(VK_RWIN) && ((GetAsyncKeyState(VK_RWIN) & 0x8000) != 0))
+                return true;
 
             return false;
         }

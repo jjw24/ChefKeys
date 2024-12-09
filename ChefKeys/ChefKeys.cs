@@ -49,8 +49,6 @@ namespace ChefKeys
         [DllImport("user32.dll")]
         public static extern short GetAsyncKeyState(int vKey);
 
-        public static event Action<string> KeyRemapped;
-
         private record KeyPressActionRecord()
         {
             internal int vk_code { get; set; }
@@ -65,8 +63,14 @@ namespace ChefKeys
 
             internal bool isSingleKeyRegistered { get; set; } = false;
 
+            internal Action<string> action;
+
+            internal string hotkeyRaw { get; set; } = string.Empty;
+
             internal Func<IntPtr, int, KeyPressActionRecord, bool> HandleKeyPress { get; set; }
         };
+
+        private static readonly Dictionary<string, KeyPressActionRecord> registeredCombos;
 
         private static readonly Dictionary<int, KeyPressActionRecord> registeredHotkeys;
         
@@ -119,7 +123,53 @@ namespace ChefKeys
 
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
-        
+        public static void RegisterHotkey(string hotkeys)
+        {
+            // The released key need to be the unique key in the dictionary.
+            // The last key in the combo is the release key that triggers action
+            var keys = hotkeys.Split("+", StringSplitOptions.RemoveEmptyEntries).Reverse();
+
+            var vkCodeCombo0 = keys.ElementAtOrDefault(1) is not null ? ToKeyCode(keys.ElementAtOrDefault(1)) : 0;
+            var vkCodeCombo1 = keys.ElementAtOrDefault(2) is not null ? ToKeyCode(keys.ElementAtOrDefault(2)) : 0;
+            var vkCodeCombo2 = keys.ElementAtOrDefault(3) is not null ? ToKeyCode(keys.ElementAtOrDefault(3)) : 0;
+
+            var singleKey = vkCodeCombo0 + vkCodeCombo1 + vkCodeCombo2 == 0;
+            var comboKeys = singleKey is false;
+
+            if (registeredHotkeys.TryGetValue(ToKeyCode(keys.First()), out var existingKeyRecord))
+            {
+                if (singleKey && !existingKeyRecord.isSingleKeyRegistered)
+                    existingKeyRecord.isSingleKeyRegistered = true;
+
+                if (comboKeys && !existingKeyRecord.isComboKeyRegistered)
+                    existingKeyRecord.isComboKeyRegistered = true;
+
+                return;
+            }
+
+            // TODO: What happens when there are two different combo e.g. alt + space and ctrl + space
+            // TODO: LeftAlt, LeftCtrl, LeftShift conversion
+            var keyRecord = new KeyPressActionRecord
+                            {
+                                vk_code = ToKeyCode(keys.First()),
+                                HandleKeyPress = HandleRegisteredKeyPress,
+                                vkCodeCombo0 = vkCodeCombo0,
+                                vkCodeCombo1 = vkCodeCombo1,
+                                vkCodeCombo2 = vkCodeCombo2,
+                                isSingleKeyRegistered = singleKey,
+                                isComboKeyRegistered = comboKeys,
+                                hotkeyRaw = hotkeys
+                            };
+
+            registeredHotkeys.Add(ToKeyCode(keys.First()), keyRecord);
+            registeredCombos.Add(hotkeys, keyRecord);
+        }
+
+        private static int ToKeyCode(string key)
+        {
+            return KeyInterop.VirtualKeyFromKey((Key)Enum.Parse(typeof(Key), key));
+        }
+
 
         private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
@@ -166,7 +216,7 @@ namespace ChefKeys
                         isLWinKeyDown = false;
                         SendAltKeyUp();
 
-                        KeyRemapped?.Invoke("LWin key remapped");
+                        keyRecord.action?.Invoke("LWin key remapped");
 
                         return true;
                     }
@@ -212,7 +262,7 @@ namespace ChefKeys
 
                     if (triggerCombo)
                     {
-                        KeyRemapped?.Invoke("");
+                        keyRecord.action?.Invoke("");
                         cancelAction = false;
 
                         return false;
@@ -222,7 +272,7 @@ namespace ChefKeys
                 if (!cancelAction)
                 {
                     if (keyRecord.isSingleKeyRegistered)
-                        KeyRemapped?.Invoke("");
+                        keyRecord.action?.Invoke("");
                 }
 
                 cancelAction = false;

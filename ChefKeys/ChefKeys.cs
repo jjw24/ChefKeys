@@ -1,9 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
+using System.Linq;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
+using System.Windows.Controls;
 using System.Windows.Input;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace ChefKeys
 {
@@ -17,11 +21,17 @@ namespace ChefKeys
         private const int VK_LWIN = 0x5B;
         private const int VK_RWIN = 0x5C;
         private const int VK_LALT = 0xA4;
+        private const int VK_RALT = 0xA5;
         private const int VK_LCTRL = 0xA2;
+        private const int VK_RCTRL = 0xA3;
         private const int VK_LSHIFT = 0xA0;
+        private const int VK_RSHIFT = 0xA1;
         private const int VK_SHIFT = 0x10;
         private const int VK_Z = 0x5A;
         private const uint KEYEVENTF_KEYUP = 0x0002;
+        private const int VK_CONTROL = 0x11;
+        private const int VK_ALT = 0x12;
+        private const int VK_WIN = 91;
 
         private static LowLevelKeyboardProc _proc;
         private static IntPtr _hookID = IntPtr.Zero;
@@ -53,24 +63,112 @@ namespace ChefKeys
         {
             internal int vk_code { get; set; }
 
+            internal List<KeyComboRecord> KeyComboRecords = new();
+
+            internal bool isSingleKeyRegistered { get; set; } = false;
+
+            internal Action<string> action;
+
+            internal Func<IntPtr, int, KeyPressActionRecord, bool> HandleKeyPress { get; set; }
+
+            internal bool AreKeyCombosRegistered() => KeyComboRecords.Count > 0;
+
+            internal void RegisterKeyCombo(string hotkey, Action<string> action, int vkCodeCombo0, int vkCodeCombo1 = 0, int vkCodeCombo2 = 0)
+            {
+                if (KeyComboRecords.Any(x => x.comboRaw == hotkey))
+                    return;
+
+                KeyComboRecords.Add(new KeyComboRecord 
+                                        {
+                                            vkCodeCombo0 = vkCodeCombo0,
+                                            vkCodeCombo1 = vkCodeCombo1, 
+                                            vkCodeCombo2 = vkCodeCombo2,
+                                            action = action,
+                                            comboRaw = hotkey
+                                        });
+                
+            }
+        };
+
+        private record KeyComboRecord()
+        {
+            internal int vk_code { get; set; }
+
+            internal Action<string> action;
+
             internal int vkCodeCombo0 { get; set; } = 0;
 
             internal int vkCodeCombo1 { get; set; } = 0;
 
             internal int vkCodeCombo2 { get; set; } = 0;
 
-            internal bool isComboKeyRegistered { get; set; } = false;
+            internal string comboRaw { get; set; } = string.Empty;
 
-            internal bool isSingleKeyRegistered { get; set; } = false;
+            internal bool AreComboKeysHeldDown()
+            {
+                var heldDown = true;
 
-            internal Action<string> action;
+                var comboKeys = new Dictionary<int, string> { { vk_code, string.Empty } };
 
-            internal string hotkeyRaw { get; set; } = string.Empty;
+                if (vkCodeCombo0 > 0)
+                {
+                    comboKeys.Add(vkCodeCombo0, string.Empty);
 
-            internal Func<IntPtr, int, KeyPressActionRecord, bool> HandleKeyPress { get; set; }
-        };
+                    if ((GetAsyncKeyState(vkCodeCombo0) & 0x8000) == 0)
+                        heldDown = false;
+                }
 
-        private static readonly Dictionary<string, KeyPressActionRecord> registeredCombos;
+                if (vkCodeCombo1 > 0)
+                {
+                    comboKeys.Add(vkCodeCombo1, string.Empty);
+
+                    if ((GetAsyncKeyState(vkCodeCombo1) & 0x8000) == 0)
+                        heldDown = false;
+                }
+
+                if (vkCodeCombo2 > 0)
+                {
+                    comboKeys.Add(vkCodeCombo2, string.Empty);
+
+                    if ((GetAsyncKeyState(vkCodeCombo2) & 0x8000) == 0)
+                        heldDown= false;
+                }
+
+                if (NonRegisteredModifierKeyPressed(comboKeys))
+                    heldDown = false;
+
+                return heldDown;
+            }
+
+            private bool NonRegisteredModifierKeyPressed(Dictionary<int, string> comboKeys)
+            {
+                if (!comboKeys.ContainsKey(VK_LCTRL) && ((GetAsyncKeyState(VK_LCTRL) & 0x8000) != 0))
+                    return true;
+
+                if (!comboKeys.ContainsKey(VK_RCTRL) && ((GetAsyncKeyState(VK_RCTRL) & 0x8000) != 0))
+                    return true;
+
+                if (!comboKeys.ContainsKey(VK_LALT) && ((GetAsyncKeyState(VK_LALT) & 0x8000) != 0))
+                    return true;
+
+                if (!comboKeys.ContainsKey(VK_RALT) && ((GetAsyncKeyState(VK_RALT) & 0x8000) != 0))
+                    return true;
+
+                if (!comboKeys.ContainsKey(VK_LSHIFT) && ((GetAsyncKeyState(VK_LSHIFT) & 0x8000) != 0))
+                    return true;
+
+                if (!comboKeys.ContainsKey(VK_RSHIFT) && ((GetAsyncKeyState(VK_RSHIFT) & 0x8000) != 0))
+                    return true;
+
+                if (!comboKeys.ContainsKey(VK_LWIN) && ((GetAsyncKeyState(VK_LWIN) & 0x8000) != 0))
+                    return true;
+
+                if (!comboKeys.ContainsKey(VK_RWIN) && ((GetAsyncKeyState(VK_RWIN) & 0x8000) != 0))
+                    return true;
+
+                return false;
+            }
+        }
 
         private static readonly Dictionary<int, KeyPressActionRecord> registeredHotkeys;
         
@@ -83,11 +181,25 @@ namespace ChefKeys
     
         static ChefKeysManager()
         {
-            registeredHotkeys = new Dictionary<int, KeyPressActionRecord>()
-            {
-                { VK_LCTRL, new KeyPressActionRecord {vk_code = VK_LCTRL, HandleKeyPress = HandleRegisteredKeyPress, vkCodeCombo0 = VK_LSHIFT, vkCodeCombo1 = VK_LALT, isSingleKeyRegistered = true, isComboKeyRegistered = true } },
-                //{ VK_LWIN, new KeyPressActionRecord {vk_code = VK_LWIN, HandleKeyPress = HandleRegisteredKeyPress } },
-            };
+            //var registeredCombos = new List<KeyComboRecord>()
+            //{
+            //    new KeyComboRecord { vkCodeCombo0 = VK_LALT, comboRaw = "LAlt+Z" },
+            //    new KeyComboRecord { vkCodeCombo0 = VK_LSHIFT, comboRaw = "LShift+Z" },
+            //};
+
+            //registeredHotkeys = new Dictionary<int, KeyPressActionRecord>()
+            //{
+            //{ VK_LCTRL, new KeyPressActionRecord {vk_code = VK_LCTRL, HandleKeyPress = HandleRegisteredKeyPress, vkCodeCombo0 = VK_LSHIFT, vkCodeCombo1 = VK_LALT, vkCodeCombo2 = VK_Z, isSingleKeyRegistered = true, isComboKeyRegistered = true } },
+            //{ 91, new KeyPressActionRecord {vk_code = 91, HandleKeyPress = HandleRegisteredKeyPress, isSingleKeyRegistered = true } },
+
+
+            //{ VK_Z, new KeyPressActionRecord {vk_code = VK_Z, HandleKeyPress = HandleRegisteredKeyPress, KeyComboRecords = registeredCombos, isSingleKeyRegistered = true, isComboKeyRegistered = true} }
+
+
+
+            //{ VK_LCTRL, new KeyPressActionRecord {vk_code = VK_LCTRL, HandleKeyPress = HandleRegisteredKeyPress, isSingleKeyRegistered = true } },
+
+            //};
 
             //registeredHotkeysCombo = new Dictionary<int, KeyPressActionRecord>()
             //{
@@ -97,7 +209,10 @@ namespace ChefKeys
             //    { VK_LSHIFT, new KeyPressActionRecord{ vk_code = VK_LSHIFT, HandleKeyPress = HandleRegisteredComboKeyPress, vkCodeCombo0 = VK_LALT, vkCodeCombo1 = VK_LCTRL, vkCodeCombo2 = VK_Z } }
             //};
 
+            registeredHotkeys = new Dictionary<int, KeyPressActionRecord>();
             nonRegisteredKeyRecord = new KeyPressActionRecord { vk_code = 0, HandleKeyPress = HandleNonRegisteredKeyPress };
+
+            
 
             _proc = HookCallback;
         }
@@ -123,7 +238,7 @@ namespace ChefKeys
 
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
-        public static void RegisterHotkey(string hotkeys)
+        public static void RegisterHotkey(string hotkeys, Action<string> action)
         {
             // The released key need to be the unique key in the dictionary.
             // The last key in the combo is the release key that triggers action
@@ -141,28 +256,37 @@ namespace ChefKeys
                 if (singleKey && !existingKeyRecord.isSingleKeyRegistered)
                     existingKeyRecord.isSingleKeyRegistered = true;
 
-                if (comboKeys && !existingKeyRecord.isComboKeyRegistered)
-                    existingKeyRecord.isComboKeyRegistered = true;
+                if (comboKeys)
+                    existingKeyRecord.RegisterKeyCombo(hotkeys, action, vkCodeCombo0, vkCodeCombo1, vkCodeCombo2);
 
                 return;
             }
 
+            //UnregisterHotkey(hotkeys);
+
             // TODO: What happens when there are two different combo e.g. alt + space and ctrl + space
             // TODO: LeftAlt, LeftCtrl, LeftShift conversion
             var keyRecord = new KeyPressActionRecord
-                            {
-                                vk_code = ToKeyCode(keys.First()),
-                                HandleKeyPress = HandleRegisteredKeyPress,
-                                vkCodeCombo0 = vkCodeCombo0,
-                                vkCodeCombo1 = vkCodeCombo1,
-                                vkCodeCombo2 = vkCodeCombo2,
-                                isSingleKeyRegistered = singleKey,
-                                isComboKeyRegistered = comboKeys,
-                                hotkeyRaw = hotkeys
-                            };
+            {
+                vk_code = ToKeyCode(keys.First()),
+                HandleKeyPress = HandleRegisteredKeyPress,                
+                isSingleKeyRegistered = singleKey,
+                action = singleKey? action : null
+            };
+
+            if (comboKeys)
+                keyRecord.RegisterKeyCombo(hotkeys, action, vkCodeCombo0, vkCodeCombo1, vkCodeCombo2);
 
             registeredHotkeys.Add(ToKeyCode(keys.First()), keyRecord);
-            registeredCombos.Add(hotkeys, keyRecord);
+        }
+
+        public static void UnregisterHotkey(string key)
+        {
+            // TODO
+            if (registeredHotkeys.Count == 0)
+                return;
+            //KeyRemapped -= registeredHotkeys.FirstOrDefault().Value.action;
+            //registeredHotkeys.Clear();
         }
 
         private static int ToKeyCode(string key)
@@ -227,42 +351,26 @@ namespace ChefKeys
                     return false;
                 }
 
-                if (keyRecord.isComboKeyRegistered)
+                if (keyRecord.AreKeyCombosRegistered())
                 {
-                    var triggerCombo = true;
+                    var triggerCombo = false;
 
-                    var comboKeys = new Dictionary<int, string> {{ keyRecord.vk_code, string.Empty }};
-
-                    if (keyRecord.vkCodeCombo0 > 0)
+                    KeyComboRecord comboFound = null;
+                    for (var index = 0; index < keyRecord.KeyComboRecords.Count; index++)
                     {
-                        comboKeys.Add(keyRecord.vkCodeCombo0, string.Empty);
+                        if (keyRecord.KeyComboRecords[index].AreComboKeysHeldDown())
+                        {
+                            comboFound = keyRecord.KeyComboRecords[index];
+                            triggerCombo = true;
 
-                        if ((GetAsyncKeyState(keyRecord.vkCodeCombo0) & 0x8000) == 0)
-                            triggerCombo = false;
+                            break;
+                        }
                     }
-
-                    if (keyRecord.vkCodeCombo1 > 0)
-                    {
-                        comboKeys.Add(keyRecord.vkCodeCombo1, string.Empty);
-
-                        if ((GetAsyncKeyState(keyRecord.vkCodeCombo1) & 0x8000) == 0)
-                            triggerCombo = false;
-                    }
-
-                    if (keyRecord.vkCodeCombo2 > 0) 
-                    {
-                        comboKeys.Add(keyRecord.vkCodeCombo2, string.Empty);
-
-                        if ((GetAsyncKeyState(keyRecord.vkCodeCombo2) & 0x8000) == 0)
-                            triggerCombo = false;
-                    }
-
-                    if (NonComboModifierKeyPressed(comboKeys))
-                        triggerCombo = false;
+                        
 
                     if (triggerCombo)
                     {
-                        keyRecord.action?.Invoke("");
+                        comboFound.action?.Invoke("");
                         cancelAction = false;
 
                         return false;
@@ -297,34 +405,7 @@ namespace ChefKeys
             return false;
         }
 
-        private static bool NonComboModifierKeyPressed(Dictionary<int, string> comboKeys)
-        {
-            if (!comboKeys.ContainsKey(VK_LCTRL) && ((GetAsyncKeyState(VK_LCTRL) & 0x8000) != 0))
-                return true;
-
-            if (!comboKeys.ContainsKey(VK_RCTRL) && ((GetAsyncKeyState(VK_RCTRL) & 0x8000) != 0))
-                return true;
-
-            if (!comboKeys.ContainsKey(VK_LALT) && ((GetAsyncKeyState(VK_LALT) & 0x8000) != 0))
-                return true;
-
-            if (!comboKeys.ContainsKey(VK_RALT) && ((GetAsyncKeyState(VK_RALT) & 0x8000) != 0))
-                return true;
-
-            if (!comboKeys.ContainsKey(VK_LSHIFT) && ((GetAsyncKeyState(VK_LSHIFT) & 0x8000) != 0))
-                return true;
-
-            if (!comboKeys.ContainsKey(VK_RSHIFT) && ((GetAsyncKeyState(VK_RSHIFT) & 0x8000) != 0))
-                return true;
-
-            if (!comboKeys.ContainsKey(VK_LWIN) && ((GetAsyncKeyState(VK_LWIN) & 0x8000) != 0))
-                return true;
-
-            if (!comboKeys.ContainsKey(VK_RWIN) && ((GetAsyncKeyState(VK_RWIN) & 0x8000) != 0))
-                return true;
-
-            return false;
-        }
+        
 
         private static void SendLWinKeyDown()
         {

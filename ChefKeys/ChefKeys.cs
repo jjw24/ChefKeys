@@ -241,10 +241,16 @@ namespace ChefKeys
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
         private static IEnumerable<String> SplitHotkeyReversed(string hotkeys) => hotkeys.Split("+", StringSplitOptions.RemoveEmptyEntries).Reverse();
-        public static void RegisterHotkey(string hotkeys, Action<string> action, string previousHotkey = "")
+
+        public static void RegisterHotkey(string hotkeys, Action<string> action)
         {
-            if (string.IsNullOrEmpty(previousHotkey))
-                previousHotkey = hotkeys;
+            RegisterHotkey(hotkeys, hotkeys, action);
+        }
+
+        public static void RegisterHotkey(string hotkeys, string previousHotkey, Action<string> action)
+        {
+            hotkeys = ConvertIncorrectKeyString(hotkeys);
+            previousHotkey = ConvertIncorrectKeyString(previousHotkey);
 
             UnregisterHotkey(hotkeys, previousHotkey, action);
 
@@ -271,7 +277,6 @@ namespace ChefKeys
                 return;
             }
 
-            // TODO: LeftAlt, LeftCtrl, LeftShift conversion
             var keyRecord = new KeyPressActionRecord
             {
                 vk_code = ToKeyCode(keys.First()),
@@ -288,13 +293,6 @@ namespace ChefKeys
 
         public static void UnregisterHotkey(string hotkey, string previousHotkey, Action<string> action)
         {
-
-            //if (hotkeys != previousHotkey)
-            //{
-            //    registeredHotkeys.FirstOrDefault(x => x.Value.KeyComboRecords.Any(y => y.action == action)).Value?.KeyComboRecords.RemoveAll(x => x.action == action);
-
-            //}
-
             var hotkeyToCheck = hotkey;
 
             if (!registeredHotkeys.TryGetValue(ToKeyCode(SplitHotkeyReversed(hotkeyToCheck).First()), out var existingKeyRecord))
@@ -305,6 +303,7 @@ namespace ChefKeys
 
                 existingKeyRecord = existingPrevKeyRecord;
             }
+
             if (!existingKeyRecord.AreKeyCombosRegistered() && existingKeyRecord.isSingleKeyRegistered)
             {
                 existingKeyRecord.action -= existingKeyRecord.action;
@@ -328,6 +327,38 @@ namespace ChefKeys
             return KeyInterop.VirtualKeyFromKey((Key)Enum.Parse(typeof(Key), key));
         }
 
+        private static string ConvertIncorrectKeyString(string hotkey)
+        {
+            var keys = hotkey.Split("+", StringSplitOptions.RemoveEmptyEntries);
+
+            var newHotkey = string.Empty;
+            foreach (var key in keys)
+            {
+                if (!string.IsNullOrEmpty(newHotkey))
+                    newHotkey += "+";
+
+                switch (key.ToLower())
+                {
+                    case "alt":
+                        newHotkey += "LeftAlt";
+                        break;
+                    case "ctrl":
+                        newHotkey += "LeftCtrl";
+                        break;
+                    case "shift":
+                        newHotkey += "LeftShift";
+                        break;
+                    case "win":
+                        newHotkey += "LWin";
+                        break;
+                    default:
+                        newHotkey += key;
+                        break;
+                }
+            }
+
+            return newHotkey;
+        }
 
         private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {

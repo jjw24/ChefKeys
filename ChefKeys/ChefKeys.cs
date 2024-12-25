@@ -73,13 +73,14 @@ namespace ChefKeys
 
             internal bool AreKeyCombosRegistered() => KeyComboRecords.Count > 0;
 
-            internal void RegisterKeyCombo(string hotkey, Action<string> action, int vkCodeCombo0, int vkCodeCombo1 = 0, int vkCodeCombo2 = 0)
+            internal void RegisterKeyCombo(string hotkey, int vk_code, Action<string> action, int vkCodeCombo0, int vkCodeCombo1 = 0, int vkCodeCombo2 = 0)
             {
                 if (KeyComboRecords.Any(x => x.comboRaw == hotkey))
                     return;
 
                 KeyComboRecords.Add(new KeyComboRecord 
                                         {
+                                            vk_code = vk_code,
                                             vkCodeCombo0 = vkCodeCombo0,
                                             vkCodeCombo1 = vkCodeCombo1, 
                                             vkCodeCombo2 = vkCodeCombo2,
@@ -108,6 +109,7 @@ namespace ChefKeys
             {
                 var heldDown = true;
 
+                // vk_code is the release key, which is already pressed, no need to check.
                 var comboKeys = new Dictionary<int, string> { { vk_code, string.Empty } };
 
                 if (vkCodeCombo0 > 0)
@@ -238,11 +240,17 @@ namespace ChefKeys
 
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
-        public static void RegisterHotkey(string hotkeys, Action<string> action)
+        private static IEnumerable<String> SplitHotkeyReversed(string hotkeys) => hotkeys.Split("+", StringSplitOptions.RemoveEmptyEntries).Reverse();
+        public static void RegisterHotkey(string hotkeys, Action<string> action, string previousHotkey = "")
         {
+            if (string.IsNullOrEmpty(previousHotkey))
+                previousHotkey = hotkeys;
+
+            UnregisterHotkey(hotkeys, previousHotkey, action);
+
             // The released key need to be the unique key in the dictionary.
             // The last key in the combo is the release key that triggers action
-            var keys = hotkeys.Split("+", StringSplitOptions.RemoveEmptyEntries).Reverse();
+            var keys = SplitHotkeyReversed(hotkeys);
 
             var vkCodeCombo0 = keys.ElementAtOrDefault(1) is not null ? ToKeyCode(keys.ElementAtOrDefault(1)) : 0;
             var vkCodeCombo1 = keys.ElementAtOrDefault(2) is not null ? ToKeyCode(keys.ElementAtOrDefault(2)) : 0;
@@ -250,21 +258,19 @@ namespace ChefKeys
 
             var singleKey = vkCodeCombo0 + vkCodeCombo1 + vkCodeCombo2 == 0;
             var comboKeys = singleKey is false;
+            var vk_code = ToKeyCode(keys.First());
 
-            if (registeredHotkeys.TryGetValue(ToKeyCode(keys.First()), out var existingKeyRecord))
+            if (registeredHotkeys.TryGetValue(vk_code, out var existingKeyRecord))
             {
                 if (singleKey && !existingKeyRecord.isSingleKeyRegistered)
                     existingKeyRecord.isSingleKeyRegistered = true;
 
                 if (comboKeys)
-                    existingKeyRecord.RegisterKeyCombo(hotkeys, action, vkCodeCombo0, vkCodeCombo1, vkCodeCombo2);
+                    existingKeyRecord.RegisterKeyCombo(hotkeys, vk_code, action, vkCodeCombo0, vkCodeCombo1, vkCodeCombo2);
 
                 return;
             }
 
-            //UnregisterHotkey(hotkeys);
-
-            // TODO: What happens when there are two different combo e.g. alt + space and ctrl + space
             // TODO: LeftAlt, LeftCtrl, LeftShift conversion
             var keyRecord = new KeyPressActionRecord
             {
@@ -275,18 +281,46 @@ namespace ChefKeys
             };
 
             if (comboKeys)
-                keyRecord.RegisterKeyCombo(hotkeys, action, vkCodeCombo0, vkCodeCombo1, vkCodeCombo2);
+                keyRecord.RegisterKeyCombo(hotkeys, vk_code, action, vkCodeCombo0, vkCodeCombo1, vkCodeCombo2);
 
             registeredHotkeys.Add(ToKeyCode(keys.First()), keyRecord);
         }
 
-        public static void UnregisterHotkey(string key)
+        public static void UnregisterHotkey(string hotkey, string previousHotkey, Action<string> action)
         {
-            // TODO
-            if (registeredHotkeys.Count == 0)
+
+            //if (hotkeys != previousHotkey)
+            //{
+            //    registeredHotkeys.FirstOrDefault(x => x.Value.KeyComboRecords.Any(y => y.action == action)).Value?.KeyComboRecords.RemoveAll(x => x.action == action);
+
+            //}
+
+            var hotkeyToCheck = hotkey;
+
+            if (!registeredHotkeys.TryGetValue(ToKeyCode(SplitHotkeyReversed(hotkeyToCheck).First()), out var existingKeyRecord))
+            {
+                hotkeyToCheck= previousHotkey;
+                if (!registeredHotkeys.TryGetValue(ToKeyCode(SplitHotkeyReversed(hotkeyToCheck).First()), out var existingPrevKeyRecord))
+                    return;
+
+                existingKeyRecord = existingPrevKeyRecord;
+            }
+            if (!existingKeyRecord.AreKeyCombosRegistered() && existingKeyRecord.isSingleKeyRegistered)
+            {
+                existingKeyRecord.action -= existingKeyRecord.action;
+                registeredHotkeys.Remove(existingKeyRecord.vk_code);
                 return;
-            //KeyRemapped -= registeredHotkeys.FirstOrDefault().Value.action;
-            //registeredHotkeys.Clear();
+            }
+
+            var comboRecord = existingKeyRecord.KeyComboRecords.FirstOrDefault(x => x.comboRaw == hotkeyToCheck);
+
+            if (comboRecord is null)
+                return;
+
+            comboRecord.action -= comboRecord.action;
+            existingKeyRecord.KeyComboRecords.RemoveAll(x => x.comboRaw == hotkeyToCheck);
+            if (!existingKeyRecord.isSingleKeyRegistered && !existingKeyRecord.AreKeyCombosRegistered())
+                registeredHotkeys.Remove(existingKeyRecord.vk_code);
         }
 
         private static int ToKeyCode(string key)

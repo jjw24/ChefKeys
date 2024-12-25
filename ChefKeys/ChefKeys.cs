@@ -359,31 +359,6 @@ namespace ChefKeys
 
                 if (vkCode == VK_LWIN || vkCode == VK_RWIN)
                     isLWinKeyDown = true;
-            }
-
-            if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
-            {
-                registeredKeyDown = false;
-
-                if (vkCode == VK_LWIN || vkCode == VK_RWIN)
-                {
-                    if (!cancelAction && isLWinKeyDown)
-                    {
-                        SendAltKeyDown();
-                        SendLWinKeyUp();
-                        isLWinKeyDown = false;
-                        SendAltKeyUp();
-
-                        keyRecord.action?.Invoke("LWin key remapped");
-
-                        return true;
-                    }
-
-                    isLWinKeyDown = false;
-                    cancelAction = false;
-
-                    return false;
-                }
 
                 if (keyRecord.AreKeyCombosRegistered())
                 {
@@ -409,6 +384,31 @@ namespace ChefKeys
 
                         return false;
                     }
+                }
+            }
+
+            if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
+            {
+                registeredKeyDown = false;
+
+                if (vkCode == VK_LWIN || vkCode == VK_RWIN)
+                {
+                    if (!cancelAction && isLWinKeyDown)
+                    {
+                        SendAltKeyDown();
+                        SendLWinKeyUp();
+                        isLWinKeyDown = false;
+                        SendAltKeyUp();
+
+                        keyRecord.action?.Invoke("LWin key remapped");
+
+                        return true;
+                    }
+
+                    isLWinKeyDown = false;
+                    cancelAction = false;
+
+                    return false;
                 }
 
                 if (!cancelAction)

@@ -304,7 +304,7 @@ namespace ChefKeys
                 existingKeyRecord = existingPrevKeyRecord;
             }
 
-            if (!existingKeyRecord.AreKeyCombosRegistered() && existingKeyRecord.isSingleKeyRegistered)
+            if (existingKeyRecord.isSingleKeyRegistered && !existingKeyRecord.AreKeyCombosRegistered() && !hotkeyToCheck.Contains('+'))
             {
                 existingKeyRecord.action -= existingKeyRecord.action;
                 registeredHotkeys.Remove(existingKeyRecord.vk_code);
@@ -313,6 +313,7 @@ namespace ChefKeys
 
             var comboRecord = existingKeyRecord.KeyComboRecords.FirstOrDefault(x => x.comboRaw == hotkeyToCheck);
 
+            // There is a single key press still registered, no need to remove anything from registeredHotkeys.
             if (comboRecord is null)
                 return;
 

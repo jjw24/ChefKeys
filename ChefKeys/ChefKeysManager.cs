@@ -144,17 +144,35 @@ namespace ChefKeys
             {
                 if (!string.IsNullOrEmpty(newHotkey))
                     newHotkey += "+";
-
+                // TODO: convert lowercase string passed in e.g. "win", "lwin", "leftalt+z"
                 switch (key.ToLower())
                 {
                     case "alt":
                         newHotkey += "LeftAlt";
                         break;
+                    case "lalt":
+                        newHotkey += "LeftAlt";
+                        break;
+                    case "ralt":
+                        newHotkey += "RightAlt";
+                        break;
                     case "ctrl":
                         newHotkey += "LeftCtrl";
                         break;
+                    case "lctrl":
+                        newHotkey += "LeftCtrl";
+                        break;
+                    case "rctrl":
+                        newHotkey += "RightCtrl";
+                        break;
                     case "shift":
                         newHotkey += "LeftShift";
+                        break;
+                    case "lshift":
+                        newHotkey += "LeftShift";
+                        break;
+                    case "rshift":
+                        newHotkey += "RightShift";
                         break;
                     case "win":
                         newHotkey += "LWin";

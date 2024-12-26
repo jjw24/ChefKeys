@@ -1,13 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.Linq;
-using System.Reflection.Emit;
 using System.Runtime.InteropServices;
-using System.Windows.Controls;
 using System.Windows.Input;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace ChefKeys
 {
@@ -27,11 +23,7 @@ namespace ChefKeys
         private const int VK_LSHIFT = 0xA0;
         private const int VK_RSHIFT = 0xA1;
         private const int VK_SHIFT = 0x10;
-        private const int VK_Z = 0x5A;
         private const uint KEYEVENTF_KEYUP = 0x0002;
-        private const int VK_CONTROL = 0x11;
-        private const int VK_ALT = 0x12;
-        private const int VK_WIN = 91;
 
         private static LowLevelKeyboardProc _proc;
         private static IntPtr _hookID = IntPtr.Zero;
@@ -52,9 +44,6 @@ namespace ChefKeys
 
         [DllImport("user32.dll")]
         private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto, ExactSpelling = true, CallingConvention = CallingConvention.Winapi)]
-        private static extern short GetKeyState(int keyCode);
 
         [DllImport("user32.dll")]
         public static extern short GetAsyncKeyState(int vKey);
@@ -78,15 +67,17 @@ namespace ChefKeys
                 if (KeyComboRecords.Any(x => x.comboRaw == hotkey))
                     return;
 
-                KeyComboRecords.Add(new KeyComboRecord 
-                                        {
-                                            vk_code = vk_code,
-                                            vkCodeCombo0 = vkCodeCombo0,
-                                            vkCodeCombo1 = vkCodeCombo1, 
-                                            vkCodeCombo2 = vkCodeCombo2,
-                                            action = action,
-                                            comboRaw = hotkey
-                                        });
+                KeyComboRecords
+                    .Add(
+                        new KeyComboRecord 
+                        {
+                            vk_code = vk_code,
+                            vkCodeCombo0 = vkCodeCombo0,
+                            vkCodeCombo1 = vkCodeCombo1, 
+                            vkCodeCombo2 = vkCodeCombo2,
+                            action = action,
+                            comboRaw = hotkey
+                        });
                 
             }
         };
@@ -173,7 +164,6 @@ namespace ChefKeys
         }
 
         private static readonly Dictionary<int, KeyPressActionRecord> registeredHotkeys;
-        
         private static readonly KeyPressActionRecord nonRegisteredKeyRecord;
         
         private static bool isLWinKeyDown = false;
@@ -183,39 +173,9 @@ namespace ChefKeys
     
         static ChefKeysManager()
         {
-            //var registeredCombos = new List<KeyComboRecord>()
-            //{
-            //    new KeyComboRecord { vkCodeCombo0 = VK_LALT, comboRaw = "LAlt+Z" },
-            //    new KeyComboRecord { vkCodeCombo0 = VK_LSHIFT, comboRaw = "LShift+Z" },
-            //};
-
-            //registeredHotkeys = new Dictionary<int, KeyPressActionRecord>()
-            //{
-            //{ VK_LCTRL, new KeyPressActionRecord {vk_code = VK_LCTRL, HandleKeyPress = HandleRegisteredKeyPress, vkCodeCombo0 = VK_LSHIFT, vkCodeCombo1 = VK_LALT, vkCodeCombo2 = VK_Z, isSingleKeyRegistered = true, isComboKeyRegistered = true } },
-            //{ 91, new KeyPressActionRecord {vk_code = 91, HandleKeyPress = HandleRegisteredKeyPress, isSingleKeyRegistered = true } },
-
-
-            //{ VK_Z, new KeyPressActionRecord {vk_code = VK_Z, HandleKeyPress = HandleRegisteredKeyPress, KeyComboRecords = registeredCombos, isSingleKeyRegistered = true, isComboKeyRegistered = true} }
-
-
-
-            //{ VK_LCTRL, new KeyPressActionRecord {vk_code = VK_LCTRL, HandleKeyPress = HandleRegisteredKeyPress, isSingleKeyRegistered = true } },
-
-            //};
-
-            //registeredHotkeysCombo = new Dictionary<int, KeyPressActionRecord>()
-            //{
-            //    { VK_Z, new KeyPressActionRecord{ vk_code = VK_Z, HandleKeyPress = HandleRegisteredComboKeyPress, vkCodeCombo0 = VK_LSHIFT, vkCodeCombo1 = VK_LALT, vkCodeCombo2 = VK_LCTRL } },
-            //    { VK_LCTRL, new KeyPressActionRecord{ vk_code = VK_LCTRL, HandleKeyPress = HandleRegisteredComboKeyPress, vkCodeCombo0 = VK_LALT, vkCodeCombo1 = VK_LSHIFT, vkCodeCombo2 = VK_Z } },
-            //    { VK_LALT, new KeyPressActionRecord{ vk_code = VK_LALT, HandleKeyPress = HandleRegisteredComboKeyPress, vkCodeCombo0 = VK_LCTRL, vkCodeCombo1 = VK_LSHIFT, vkCodeCombo2 = VK_Z } },
-            //    { VK_LSHIFT, new KeyPressActionRecord{ vk_code = VK_LSHIFT, HandleKeyPress = HandleRegisteredComboKeyPress, vkCodeCombo0 = VK_LALT, vkCodeCombo1 = VK_LCTRL, vkCodeCombo2 = VK_Z } }
-            //};
-
             registeredHotkeys = new Dictionary<int, KeyPressActionRecord>();
             nonRegisteredKeyRecord = new KeyPressActionRecord { vk_code = 0, HandleKeyPress = HandleNonRegisteredKeyPress };
-
             
-
             _proc = HookCallback;
         }
 
@@ -240,12 +200,9 @@ namespace ChefKeys
 
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
-        private static IEnumerable<String> SplitHotkeyReversed(string hotkeys) => hotkeys.Split("+", StringSplitOptions.RemoveEmptyEntries).Reverse();
+        private static IEnumerable<string> SplitHotkeyReversed(string hotkeys) => hotkeys.Split("+", StringSplitOptions.RemoveEmptyEntries).Reverse();
 
-        public static void RegisterHotkey(string hotkeys, Action<string> action)
-        {
-            RegisterHotkey(hotkeys, hotkeys, action);
-        }
+        public static void RegisterHotkey(string hotkeys, Action<string> action) => RegisterHotkey(hotkeys, hotkeys, action);
 
         public static void RegisterHotkey(string hotkeys, string previousHotkey, Action<string> action)
         {
@@ -470,8 +427,6 @@ namespace ChefKeys
 
             return false;
         }
-
-        
 
         private static void SendLWinKeyDown()
         {

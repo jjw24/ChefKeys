@@ -9,6 +9,23 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <PackageVersion>0.0.1</PackageVersion>
+    <AssemblyVersion>0.0.1</AssemblyVersion>
+    <InformationalVersion>0.0.1</InformationalVersion>
+    <PackageId>ChefKeys</PackageId>
+    <Authors>Jeremy Wu</Authors>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <CopyRight>Jeremy Wu</CopyRight>
+    <RepositoryUrl>https://github.com/jjw24/ChefKeys</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/jjw24/ChefKeys</PackageProjectUrl>
+    <PackageDescription>Library for applications to use the Win key or any keyboard combinations</PackageDescription>
+    <PackageTags>chefkeys; win-key; hotkeys; keyboard-hotkeys; keyboard-combinations</PackageTags>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <TargetFramework>net7.0-windows</TargetFramework>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <OutputPath>..\Output\Debug</OutputPath>
   </PropertyGroup>

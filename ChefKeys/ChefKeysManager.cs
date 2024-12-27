@@ -22,7 +22,11 @@ namespace ChefKeys
         private static bool nonRegisteredKeyDown = false;
         private static bool cancelAction = false;
         private static bool registeredKeyDown = false;
-    
+
+        public static bool StartMenuEnableBlocking = false;
+        public static bool StartMenuBlocked = false;
+        public static string StartMenuSimulatedKey = "LeftAlt";
+
         static ChefKeysManager()
         {
             registeredHotkeys = new Dictionary<int, KeyRecord>();
@@ -187,11 +191,23 @@ namespace ChefKeys
             {
                 int vkCode = Marshal.ReadInt32(lParam);
 
-                var keyRecord = !registeredHotkeys.TryGetValue(vkCode, out KeyRecord registeredKeyRecord)
-                                ? nonRegisteredKeyRecord
-                                : registeredKeyRecord;
+                var isNotRegisteredkey = !registeredHotkeys.TryGetValue(vkCode, out KeyRecord registeredKeyRecord);
 
-                var blockKeyPress = keyRecord.HandleKeyPress(wParam, vkCode,keyRecord);
+                var keyRecord = isNotRegisteredkey ? nonRegisteredKeyRecord : registeredKeyRecord;
+
+                // Create a one-off win key record when blocking is enabled
+                if (StartMenuEnableBlocking && (vkCode == VK_LWIN || vkCode == VK_RWIN))
+                {
+                    keyRecord = new KeyRecord
+                    {
+                        vk_code = vkCode,
+                        HandleKeyPress = HandleRegisteredKeyPress,
+                        isSingleKeyRegistered = true,
+                        action = null
+                    };
+                }
+
+                var blockKeyPress = keyRecord.HandleKeyPress(wParam, vkCode, keyRecord);
 
                 if (blockKeyPress)
                     return (IntPtr)1;
@@ -242,14 +258,14 @@ namespace ChefKeys
             {
                 registeredKeyDown = false;
 
+                StartMenuBlocked = false;
                 if (vkCode == VK_LWIN || vkCode == VK_RWIN)
                 {
                     if (!cancelAction && isLWinKeyDown)
                     {
-                        SendAltKeyDown();
-                        SendLWinKeyUp();
-                        isLWinKeyDown = false;
-                        SendAltKeyUp();
+                        BlockWindowsStartMenu();
+
+                        StartMenuBlocked = true;
 
                         keyRecord.action?.Invoke("");
 
@@ -290,29 +306,15 @@ namespace ChefKeys
             return false;
         }
 
-        private static void SendLWinKeyDown()
-        {
-            _isSimulatingKeyPress = true;
-            keybd_event(VK_LWIN, 0, 0, UIntPtr.Zero);
-            _isSimulatingKeyPress = false;
-        }
-
-        private static void SendAltKeyDown()
+        private static void BlockWindowsStartMenu()
         {
             _isSimulatingKeyPress = true;
             keybd_event(VK_LALT, 0, 0, UIntPtr.Zero);
             _isSimulatingKeyPress = false;
-        }
-
-        private static void SendLWinKeyUp()
-        {
             _isSimulatingKeyPress = true;
             keybd_event(VK_LWIN, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
             _isSimulatingKeyPress = false;
-        }
-
-        private static void SendAltKeyUp()
-        {
+            isLWinKeyDown = false;
             _isSimulatingKeyPress = true;
             keybd_event(VK_LALT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
             _isSimulatingKeyPress = false;

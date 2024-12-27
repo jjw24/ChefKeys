@@ -59,7 +59,7 @@ namespace ChefKeys
             hotkeys = ConvertIncorrectKeyString(hotkeys);
             previousHotkey = ConvertIncorrectKeyString(previousHotkey);
 
-            UnregisterHotkey(hotkeys, previousHotkey, action);
+            UnregisterHotkey(previousHotkey);
 
             // The released key need to be the unique key in the dictionary.
             // The last key in the combo is the release key that triggers action
@@ -98,34 +98,29 @@ namespace ChefKeys
             registeredHotkeys.Add(ToKeyCode(keys.First()), keyRecord);
         }
 
-        public static void UnregisterHotkey(string hotkey, string previousHotkey, Action<string> action)
+        public static void UnregisterHotkey(string hotkey)
         {
-            var hotkeyToCheck = hotkey;
+            if (!registeredHotkeys.TryGetValue(ToKeyCode(SplitHotkeyReversed(hotkey).First()), out var existingKeyRecord))
+                return;
 
-            if (!registeredHotkeys.TryGetValue(ToKeyCode(SplitHotkeyReversed(hotkeyToCheck).First()), out var existingKeyRecord))
-            {
-                hotkeyToCheck= previousHotkey;
-                if (!registeredHotkeys.TryGetValue(ToKeyCode(SplitHotkeyReversed(hotkeyToCheck).First()), out var existingPrevKeyRecord))
-                    return;
+            if (!existingKeyRecord.KeyComboRecords.Exists(x => x.comboRaw == hotkey))
+                return;
 
-                existingKeyRecord = existingPrevKeyRecord;
-            }
-
-            if (existingKeyRecord.isSingleKeyRegistered && !existingKeyRecord.AreKeyCombosRegistered() && !hotkeyToCheck.Contains('+'))
+            if (!hotkey.Contains('+'))
             {
                 existingKeyRecord.action -= existingKeyRecord.action;
-                registeredHotkeys.Remove(existingKeyRecord.vk_code);
+                existingKeyRecord.isSingleKeyRegistered = false;
+
+                if (!existingKeyRecord.AreKeyCombosRegistered())
+                    registeredHotkeys.Remove(existingKeyRecord.vk_code);
+
                 return;
             }
 
-            var comboRecord = existingKeyRecord.KeyComboRecords.FirstOrDefault(x => x.comboRaw == hotkeyToCheck);
-
-            // There is a single key press still registered, no need to remove anything from registeredHotkeys.
-            if (comboRecord is null)
-                return;
-
+            var comboRecord = existingKeyRecord.KeyComboRecords.FirstOrDefault(x => x.comboRaw == hotkey);
             comboRecord.action -= comboRecord.action;
-            existingKeyRecord.KeyComboRecords.RemoveAll(x => x.comboRaw == hotkeyToCheck);
+            existingKeyRecord.KeyComboRecords.RemoveAll(x => x.comboRaw == hotkey);
+            
             if (!existingKeyRecord.isSingleKeyRegistered && !existingKeyRecord.AreKeyCombosRegistered())
                 registeredHotkeys.Remove(existingKeyRecord.vk_code);
         }
@@ -201,7 +196,7 @@ namespace ChefKeys
                 if (blockKeyPress)
                     return (IntPtr)1;
             }
-            
+
             return CallNextHookEx(_hookID, nCode, wParam, lParam);
         }
 
@@ -232,7 +227,6 @@ namespace ChefKeys
                             break;
                         }
                     }
-                        
 
                     if (triggerCombo)
                     {
@@ -257,7 +251,7 @@ namespace ChefKeys
                         isLWinKeyDown = false;
                         SendAltKeyUp();
 
-                        keyRecord.action?.Invoke("LWin key remapped");
+                        keyRecord.action?.Invoke("");
 
                         return true;
                     }

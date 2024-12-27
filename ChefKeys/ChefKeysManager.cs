@@ -249,13 +249,12 @@ namespace ChefKeys
 
         public static void UnregisterHotkey(string hotkey)
         {
-            if (!registeredHotkeys.TryGetValue(ToKeyCode(SplitHotkeyReversed(hotkey).First()), out var existingKeyRecord))
+            var existingKeyRecord = GetRegisteredKeyRecord(hotkey);
+
+            if (existingKeyRecord is null)
                 return;
 
-            if (!existingKeyRecord.KeyComboRecords.Exists(x => x.comboRaw == hotkey))
-                return;
-
-            if (!hotkey.Contains('+'))
+            if (!IsComboString(hotkey))
             {
                 existingKeyRecord.action -= existingKeyRecord.action;
                 existingKeyRecord.isSingleKeyRegistered = false;
@@ -274,12 +273,24 @@ namespace ChefKeys
                 registeredHotkeys.Remove(existingKeyRecord.vk_code);
         }
 
+        internal static KeyRecord GetRegisteredKeyRecord(string hotkey)
+        {
+            if (!registeredHotkeys.TryGetValue(ToKeyCode(SplitHotkeyReversed(hotkey).First()), out var existingKeyRecord))
+                return null;
+
+            if (IsComboString(hotkey) && !existingKeyRecord.KeyComboRecords.Exists(x => x.comboRaw == hotkey))
+                return null;
+
+            return existingKeyRecord;
+        }
+
         private static int ToKeyCode(string key)
         {
             return KeyInterop.VirtualKeyFromKey((Key)Enum.Parse(typeof(Key), key));
         }
         
-        private static IEnumerable<string> SplitHotkeyReversed(string hotkeys) => hotkeys.Split("+", StringSplitOptions.RemoveEmptyEntries).Reverse();
+        private static IEnumerable<string> SplitHotkeyReversed(string hotkeys)
+            => hotkeys.Split("+", StringSplitOptions.RemoveEmptyEntries).Reverse();
 
         private static string ConvertIncorrectKeyString(string hotkey)
         {
@@ -331,6 +342,8 @@ namespace ChefKeys
 
             return newHotkey;
         }
+
+        private static bool IsComboString(string hotkey) => hotkey.Contains('+');
 
         #endregion key management
     }

@@ -225,7 +225,10 @@ namespace ChefKeys
             if (registeredHotkeys.TryGetValue(vk_code, out var existingKeyRecord))
             {
                 if (singleKey && !existingKeyRecord.isSingleKeyRegistered)
+                {
                     existingKeyRecord.isSingleKeyRegistered = true;
+                    existingKeyRecord.action += action;
+                }
 
                 if (comboKeys)
                     existingKeyRecord.RegisterKeyCombo(hotkeys, vk_code, action, vkCodeCombo0, vkCodeCombo1, vkCodeCombo2);

@@ -122,7 +122,7 @@ namespace ChefKeys
 
                     if (triggerCombo)
                     {
-                        comboFound.action?.Invoke("");
+                        comboFound.action?.Invoke();
                         cancelAction = false;
 
                         return false;
@@ -143,7 +143,7 @@ namespace ChefKeys
 
                         StartMenuBlocked = true;
 
-                        keyRecord.action?.Invoke("");
+                        keyRecord.action?.Invoke();
 
                         return true;
                     }
@@ -157,7 +157,7 @@ namespace ChefKeys
                 if (!cancelAction)
                 {
                     if (keyRecord.isSingleKeyRegistered)
-                        keyRecord.action?.Invoke("");
+                        keyRecord.action?.Invoke();
                 }
 
                 cancelAction = false;
@@ -201,9 +201,9 @@ namespace ChefKeys
 
         #region key management
 
-        public static void RegisterHotkey(string hotkeys, Action<string> action) => RegisterHotkey(hotkeys, hotkeys, action);
+        public static void RegisterHotkey(string hotkeys, Action action) => RegisterHotkey(hotkeys, hotkeys, action);
 
-        public static void RegisterHotkey(string hotkeys, string previousHotkey, Action<string> action)
+        public static void RegisterHotkey(string hotkeys, string previousHotkey, Action action)
         {
             hotkeys = ConvertIncorrectKeyString(hotkeys);
             previousHotkey = ConvertIncorrectKeyString(previousHotkey);

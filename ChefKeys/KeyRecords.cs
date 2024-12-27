@@ -13,13 +13,13 @@ namespace ChefKeys
 
         internal bool isSingleKeyRegistered { get; set; } = false;
 
-        internal Action<string> action;
+        internal Action action;
 
         internal Func<IntPtr, int, KeyRecord, bool> HandleKeyPress { get; set; }
 
         internal bool AreKeyCombosRegistered() => KeyComboRecords.Count > 0;
 
-        internal void RegisterKeyCombo(string hotkey, int vk_code, Action<string> action, int vkCodeCombo0, int vkCodeCombo1 = 0, int vkCodeCombo2 = 0)
+        internal void RegisterKeyCombo(string hotkey, int vk_code, Action action, int vkCodeCombo0, int vkCodeCombo1 = 0, int vkCodeCombo2 = 0)
         {
             if (KeyComboRecords.Any(x => x.comboRaw == hotkey))
                 return;
@@ -43,7 +43,7 @@ namespace ChefKeys
     {
         internal int vk_code { get; set; }
 
-        internal Action<string> action;
+        internal Action action;
 
         internal int vkCodeCombo0 { get; set; } = 0;
 

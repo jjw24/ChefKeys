@@ -11,21 +11,14 @@ namespace ChefKeys
 {
     public static class ChefKeysManager
     {
+        #region setup
+
         private static IntPtr _hookID = IntPtr.Zero;
         private static LowLevelKeyboardProc _proc;
         private static bool _isSimulatingKeyPress = false;
         
         private static readonly Dictionary<int, KeyRecord> registeredHotkeys;
         private static readonly KeyRecord nonRegisteredKeyRecord;
-        
-        private static bool isLWinKeyDown = false;
-        private static bool nonRegisteredKeyDown = false;
-        private static bool cancelAction = false;
-        private static bool registeredKeyDown = false;
-
-        public static bool StartMenuEnableBlocking = false;
-        public static bool StartMenuBlocked = false;
-        public static string StartMenuSimulatedKey = "LeftAlt";
 
         static ChefKeysManager()
         {
@@ -54,136 +47,19 @@ namespace ChefKeys
             }
         }
 
-        private static IEnumerable<string> SplitHotkeyReversed(string hotkeys) => hotkeys.Split("+", StringSplitOptions.RemoveEmptyEntries).Reverse();
+        #endregion setup
 
-        public static void RegisterHotkey(string hotkeys, Action<string> action) => RegisterHotkey(hotkeys, hotkeys, action);
 
-        public static void RegisterHotkey(string hotkeys, string previousHotkey, Action<string> action)
-        {
-            hotkeys = ConvertIncorrectKeyString(hotkeys);
-            previousHotkey = ConvertIncorrectKeyString(previousHotkey);
+        #region key press logic
 
-            UnregisterHotkey(previousHotkey);
+        private static bool isLWinKeyDown = false;
+        private static bool nonRegisteredKeyDown = false;
+        private static bool cancelAction = false;
+        private static bool registeredKeyDown = false;
 
-            // The released key need to be the unique key in the dictionary.
-            // The last key in the combo is the release key that triggers action
-            var keys = SplitHotkeyReversed(hotkeys);
-
-            var vkCodeCombo0 = keys.ElementAtOrDefault(1) is not null ? ToKeyCode(keys.ElementAtOrDefault(1)) : 0;
-            var vkCodeCombo1 = keys.ElementAtOrDefault(2) is not null ? ToKeyCode(keys.ElementAtOrDefault(2)) : 0;
-            var vkCodeCombo2 = keys.ElementAtOrDefault(3) is not null ? ToKeyCode(keys.ElementAtOrDefault(3)) : 0;
-
-            var singleKey = vkCodeCombo0 + vkCodeCombo1 + vkCodeCombo2 == 0;
-            var comboKeys = singleKey is false;
-            var vk_code = ToKeyCode(keys.First());
-
-            if (registeredHotkeys.TryGetValue(vk_code, out var existingKeyRecord))
-            {
-                if (singleKey && !existingKeyRecord.isSingleKeyRegistered)
-                    existingKeyRecord.isSingleKeyRegistered = true;
-
-                if (comboKeys)
-                    existingKeyRecord.RegisterKeyCombo(hotkeys, vk_code, action, vkCodeCombo0, vkCodeCombo1, vkCodeCombo2);
-
-                return;
-            }
-
-            var keyRecord = new KeyRecord
-            {
-                vk_code = ToKeyCode(keys.First()),
-                HandleKeyPress = HandleRegisteredKeyPress,                
-                isSingleKeyRegistered = singleKey,
-                action = singleKey? action : null
-            };
-
-            if (comboKeys)
-                keyRecord.RegisterKeyCombo(hotkeys, vk_code, action, vkCodeCombo0, vkCodeCombo1, vkCodeCombo2);
-
-            registeredHotkeys.Add(ToKeyCode(keys.First()), keyRecord);
-        }
-
-        public static void UnregisterHotkey(string hotkey)
-        {
-            if (!registeredHotkeys.TryGetValue(ToKeyCode(SplitHotkeyReversed(hotkey).First()), out var existingKeyRecord))
-                return;
-
-            if (!existingKeyRecord.KeyComboRecords.Exists(x => x.comboRaw == hotkey))
-                return;
-
-            if (!hotkey.Contains('+'))
-            {
-                existingKeyRecord.action -= existingKeyRecord.action;
-                existingKeyRecord.isSingleKeyRegistered = false;
-
-                if (!existingKeyRecord.AreKeyCombosRegistered())
-                    registeredHotkeys.Remove(existingKeyRecord.vk_code);
-
-                return;
-            }
-
-            var comboRecord = existingKeyRecord.KeyComboRecords.FirstOrDefault(x => x.comboRaw == hotkey);
-            comboRecord.action -= comboRecord.action;
-            existingKeyRecord.KeyComboRecords.RemoveAll(x => x.comboRaw == hotkey);
-            
-            if (!existingKeyRecord.isSingleKeyRegistered && !existingKeyRecord.AreKeyCombosRegistered())
-                registeredHotkeys.Remove(existingKeyRecord.vk_code);
-        }
-
-        private static int ToKeyCode(string key)
-        {
-            return KeyInterop.VirtualKeyFromKey((Key)Enum.Parse(typeof(Key), key));
-        }
-
-        private static string ConvertIncorrectKeyString(string hotkey)
-        {
-            var keys = hotkey.Split("+", StringSplitOptions.RemoveEmptyEntries);
-
-            var newHotkey = string.Empty;
-            foreach (var key in keys)
-            {
-                if (!string.IsNullOrEmpty(newHotkey))
-                    newHotkey += "+";
-                // TODO: convert lowercase string passed in e.g. "win", "lwin", "leftalt+z"
-                switch (key.ToLower())
-                {
-                    case "alt":
-                        newHotkey += "LeftAlt";
-                        break;
-                    case "lalt":
-                        newHotkey += "LeftAlt";
-                        break;
-                    case "ralt":
-                        newHotkey += "RightAlt";
-                        break;
-                    case "ctrl":
-                        newHotkey += "LeftCtrl";
-                        break;
-                    case "lctrl":
-                        newHotkey += "LeftCtrl";
-                        break;
-                    case "rctrl":
-                        newHotkey += "RightCtrl";
-                        break;
-                    case "shift":
-                        newHotkey += "LeftShift";
-                        break;
-                    case "lshift":
-                        newHotkey += "LeftShift";
-                        break;
-                    case "rshift":
-                        newHotkey += "RightShift";
-                        break;
-                    case "win":
-                        newHotkey += "LWin";
-                        break;
-                    default:
-                        newHotkey += key;
-                        break;
-                }
-            }
-
-            return newHotkey;
-        }
+        public static bool StartMenuEnableBlocking = false;
+        public static bool StartMenuBlocked = false;
+        public static string StartMenuSimulatedKey = "LeftAlt";
 
         private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
@@ -319,5 +195,143 @@ namespace ChefKeys
             keybd_event(VK_LALT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
             _isSimulatingKeyPress = false;
         }
+
+        #endregion key press logic
+
+
+        #region key management
+
+        public static void RegisterHotkey(string hotkeys, Action<string> action) => RegisterHotkey(hotkeys, hotkeys, action);
+
+        public static void RegisterHotkey(string hotkeys, string previousHotkey, Action<string> action)
+        {
+            hotkeys = ConvertIncorrectKeyString(hotkeys);
+            previousHotkey = ConvertIncorrectKeyString(previousHotkey);
+
+            UnregisterHotkey(previousHotkey);
+
+            // The released key need to be the unique key in the dictionary.
+            // The last key in the combo is the release key that triggers action
+            var keys = SplitHotkeyReversed(hotkeys);
+
+            var vkCodeCombo0 = keys.ElementAtOrDefault(1) is not null ? ToKeyCode(keys.ElementAtOrDefault(1)) : 0;
+            var vkCodeCombo1 = keys.ElementAtOrDefault(2) is not null ? ToKeyCode(keys.ElementAtOrDefault(2)) : 0;
+            var vkCodeCombo2 = keys.ElementAtOrDefault(3) is not null ? ToKeyCode(keys.ElementAtOrDefault(3)) : 0;
+
+            var singleKey = vkCodeCombo0 + vkCodeCombo1 + vkCodeCombo2 == 0;
+            var comboKeys = singleKey is false;
+            var vk_code = ToKeyCode(keys.First());
+
+            if (registeredHotkeys.TryGetValue(vk_code, out var existingKeyRecord))
+            {
+                if (singleKey && !existingKeyRecord.isSingleKeyRegistered)
+                    existingKeyRecord.isSingleKeyRegistered = true;
+
+                if (comboKeys)
+                    existingKeyRecord.RegisterKeyCombo(hotkeys, vk_code, action, vkCodeCombo0, vkCodeCombo1, vkCodeCombo2);
+
+                return;
+            }
+
+            var keyRecord = new KeyRecord
+            {
+                vk_code = ToKeyCode(keys.First()),
+                HandleKeyPress = HandleRegisteredKeyPress,
+                isSingleKeyRegistered = singleKey,
+                action = singleKey ? action : null
+            };
+
+            if (comboKeys)
+                keyRecord.RegisterKeyCombo(hotkeys, vk_code, action, vkCodeCombo0, vkCodeCombo1, vkCodeCombo2);
+
+            registeredHotkeys.Add(ToKeyCode(keys.First()), keyRecord);
+        }
+
+        public static void UnregisterHotkey(string hotkey)
+        {
+            if (!registeredHotkeys.TryGetValue(ToKeyCode(SplitHotkeyReversed(hotkey).First()), out var existingKeyRecord))
+                return;
+
+            if (!existingKeyRecord.KeyComboRecords.Exists(x => x.comboRaw == hotkey))
+                return;
+
+            if (!hotkey.Contains('+'))
+            {
+                existingKeyRecord.action -= existingKeyRecord.action;
+                existingKeyRecord.isSingleKeyRegistered = false;
+
+                if (!existingKeyRecord.AreKeyCombosRegistered())
+                    registeredHotkeys.Remove(existingKeyRecord.vk_code);
+
+                return;
+            }
+
+            var comboRecord = existingKeyRecord.KeyComboRecords.FirstOrDefault(x => x.comboRaw == hotkey);
+            comboRecord.action -= comboRecord.action;
+            existingKeyRecord.KeyComboRecords.RemoveAll(x => x.comboRaw == hotkey);
+
+            if (!existingKeyRecord.isSingleKeyRegistered && !existingKeyRecord.AreKeyCombosRegistered())
+                registeredHotkeys.Remove(existingKeyRecord.vk_code);
+        }
+
+        private static int ToKeyCode(string key)
+        {
+            return KeyInterop.VirtualKeyFromKey((Key)Enum.Parse(typeof(Key), key));
+        }
+        
+        private static IEnumerable<string> SplitHotkeyReversed(string hotkeys) => hotkeys.Split("+", StringSplitOptions.RemoveEmptyEntries).Reverse();
+
+        private static string ConvertIncorrectKeyString(string hotkey)
+        {
+            var keys = hotkey.Split("+", StringSplitOptions.RemoveEmptyEntries);
+
+            var newHotkey = string.Empty;
+            foreach (var key in keys)
+            {
+                if (!string.IsNullOrEmpty(newHotkey))
+                    newHotkey += "+";
+                // TODO: convert lowercase string passed in e.g. "win", "lwin", "leftalt+z" ??
+                switch (key.ToLower())
+                {
+                    case "alt":
+                        newHotkey += "LeftAlt";
+                        break;
+                    case "lalt":
+                        newHotkey += "LeftAlt";
+                        break;
+                    case "ralt":
+                        newHotkey += "RightAlt";
+                        break;
+                    case "ctrl":
+                        newHotkey += "LeftCtrl";
+                        break;
+                    case "lctrl":
+                        newHotkey += "LeftCtrl";
+                        break;
+                    case "rctrl":
+                        newHotkey += "RightCtrl";
+                        break;
+                    case "shift":
+                        newHotkey += "LeftShift";
+                        break;
+                    case "lshift":
+                        newHotkey += "LeftShift";
+                        break;
+                    case "rshift":
+                        newHotkey += "RightShift";
+                        break;
+                    case "win":
+                        newHotkey += "LWin";
+                        break;
+                    default:
+                        newHotkey += key;
+                        break;
+                }
+            }
+
+            return newHotkey;
+        }
+
+        #endregion key management
     }
 }

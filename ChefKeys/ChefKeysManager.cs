@@ -281,10 +281,33 @@ namespace ChefKeys
             if (!registeredHotkeys.TryGetValue(ToKeyCode(SplitHotkeyReversed(hotkey).First()), out var existingKeyRecord))
                 return null;
 
-            if (IsComboString(hotkey) && !existingKeyRecord.KeyComboRecords.Exists(x => x.comboRaw == hotkey))
+            var isComboString = IsComboString(hotkey);
+
+            if (!isComboString && !existingKeyRecord.isSingleKeyRegistered)
+                return null;
+
+            if (isComboString && !existingKeyRecord.KeyComboRecords.Exists(x => x.comboRaw == hotkey))
                 return null;
 
             return existingKeyRecord;
+        }
+
+        public static bool CanRegisterHotkey(string hotkey) => IsAvailable(hotkey) && IsValidHotkey(hotkey);
+
+        public static bool IsAvailable(string hotkey) => GetRegisteredKeyRecord(ConvertIncorrectKeyString(hotkey)) is null;
+
+        public static bool IsValidHotkey(string hotkey)
+        {
+            if (!(!string.IsNullOrEmpty(hotkey) && SplitHotkeyReversed(ConvertIncorrectKeyString(hotkey)).Count() <= 4))
+                return false;
+
+
+            // TODO: add support for same key combo e.g. LeftControl + LeftControl
+            if (!IsComboString(hotkey))
+                return true;
+
+            return !hotkey.Split('+').GroupBy(key => key).Any(chunk => chunk.Count() > 1);
+            //
         }
 
         private static int ToKeyCode(string key)

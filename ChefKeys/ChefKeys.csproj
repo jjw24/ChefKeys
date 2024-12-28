@@ -10,9 +10,9 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <PackageVersion>0.0.1</PackageVersion>
-    <AssemblyVersion>0.0.1</AssemblyVersion>
-    <InformationalVersion>0.0.1</InformationalVersion>
+    <PackageVersion>0.1.0</PackageVersion>
+    <AssemblyVersion>0.1.0</AssemblyVersion>
+    <InformationalVersion>0.1.0</InformationalVersion>
     <PackageId>ChefKeys</PackageId>
     <Authors>Jeremy Wu</Authors>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>

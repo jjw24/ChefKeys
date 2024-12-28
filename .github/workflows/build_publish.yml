@@ -28,19 +28,19 @@ jobs:
         name: ChefKeys
         path: Output/Release/
     
-    # - name: Publish To NuGet 
-      # if: ${{ github.ref == 'refs/heads/main' }}
-      # run: nuget push Output\Release\*.nupkg -Source 'https://api.nuget.org/v3/index.json' -ApiKey ${{secrets.PUBLISH}}
+    - name: publish to nuget 
+      if: ${{ github.ref == 'refs/heads/main' }}
+      run: nuget push output\release\*.nupkg -source 'https://api.nuget.org/v3/index.json' -apikey ${{secrets.publish}}
     
-    # - name: Get Version
-      # if: ${{ github.ref == 'refs/heads/main' }}
-      # run: |
-        # $version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo("Output\Release\ChefKeys.dll").ProductVersion
-        # echo "RELEASE_VERSION=$version" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf-8 -Append
+    - name: get version
+      if: ${{ github.ref == 'refs/heads/main' }}
+      run: |
+        $version = [system.diagnostics.fileversioninfo]::getversioninfo("output\release\chefkeys.dll").productversion
+        echo "release_version=$version" | out-file -filepath $env:github_env -encoding utf-8 -append
     
-    # - name: Publish To GitHub Releases
-      # if: ${{ github.ref == 'refs/heads/main' }}
-      # uses: softprops/action-gh-release@v1
-      # with:
-        # files: "Output\\Release\\*.nupkg"
-        # tag_name: "v${{ env.RELEASE_VERSION }}"
+    - name: publish to github releases
+      if: ${{ github.ref == 'refs/heads/main' }}
+      uses: softprops/action-gh-release@v1
+      with:
+        files: "output\\release\\*.nupkg"
+        tag_name: "v${{ env.release_version }}"

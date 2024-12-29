@@ -54,7 +54,7 @@ namespace ChefKeys
 
         private static bool isWinKeyDown = false;
         private static bool nonRegisteredKeyDown = false;
-        private static bool cancelAction = false;
+        private static bool cancelSingleKeyAction = false;
         private static bool registeredKeyDown = false;
         private static int lastRegisteredDownKey = 0;
 
@@ -95,9 +95,8 @@ namespace ChefKeys
 
         private static bool HandleRegisteredKeyPress(IntPtr wParam, int vkCode, KeyRecord keyRecord)
         {
-            // This does not handle when a key press is a registered key but not the current vkcode
             if (nonRegisteredKeyDown)
-                cancelAction = true;
+                cancelSingleKeyAction = true;
 
             if (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN)
             {
@@ -117,7 +116,6 @@ namespace ChefKeys
                     if (comboRecord is not null)
                     {
                         comboRecord.action?.Invoke();
-                        cancelAction = false;
 
                         return false;
                     }
@@ -129,12 +127,12 @@ namespace ChefKeys
                 registeredKeyDown = false;
 
                 if (lastRegisteredDownKey != vkCode)
-                    cancelAction = true;
+                    cancelSingleKeyAction = true;
 
                 StartMenuBlocked = false;
                 if (vkCode == VK_LWIN || vkCode == VK_RWIN)
                 {
-                    if (!cancelAction && isWinKeyDown)
+                    if (!cancelSingleKeyAction && isWinKeyDown)
                     {
                         BlockWindowsStartMenu();
 
@@ -146,7 +144,7 @@ namespace ChefKeys
                     }
 
                     isWinKeyDown = false;
-                    cancelAction = false;
+                    cancelSingleKeyAction = false;
 
                     return false;
                 }
@@ -160,19 +158,18 @@ namespace ChefKeys
                     if (comboRecord is not null)
                     {
                         comboRecord.action?.Invoke();
-                        cancelAction = false;
 
                         return false;
                     }
                 }
 
-                if (!cancelAction)
+                if (!cancelSingleKeyAction)
                 {
                     if (keyRecord.isSingleKeyRegistered)
                         keyRecord.action?.Invoke();
                 }
 
-                cancelAction = false;
+                cancelSingleKeyAction = false;
             }
 
             return false;
@@ -192,7 +189,7 @@ namespace ChefKeys
             // Handles instance where non-registered key is up while single registered key is still down,
             // e.g. registered Ctrl down, unregistered Esc down & up, registered Ctrl up
             if (registeredKeyDown)
-                cancelAction = true;
+                cancelSingleKeyAction = true;
 
             return false;
         }

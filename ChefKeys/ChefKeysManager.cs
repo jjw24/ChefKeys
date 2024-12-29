@@ -52,7 +52,7 @@ namespace ChefKeys
 
         #region key press logic
 
-        private static bool isLWinKeyDown = false;
+        private static bool isWinKeyDown = false;
         private static bool nonRegisteredKeyDown = false;
         private static bool cancelAction = false;
         private static bool registeredKeyDown = false;
@@ -95,6 +95,7 @@ namespace ChefKeys
 
         private static bool HandleRegisteredKeyPress(IntPtr wParam, int vkCode, KeyRecord keyRecord)
         {
+            // This does not handle when a key press is a registered key but not the current vkcode
             if (nonRegisteredKeyDown)
                 cancelAction = true;
 
@@ -105,7 +106,7 @@ namespace ChefKeys
                 lastRegisteredDownKey = vkCode;
 
                 if (vkCode == VK_LWIN || vkCode == VK_RWIN)
-                    isLWinKeyDown = true;
+                    isWinKeyDown = true;
 
                 // Non-modifier combos i.e. ending with a non-modifier key e.g. LeftAlt+Z
                 // can be handled with key down so it's triggered faster than waiting till key up
@@ -133,7 +134,7 @@ namespace ChefKeys
                 StartMenuBlocked = false;
                 if (vkCode == VK_LWIN || vkCode == VK_RWIN)
                 {
-                    if (!cancelAction && isLWinKeyDown)
+                    if (!cancelAction && isWinKeyDown)
                     {
                         BlockWindowsStartMenu();
 
@@ -144,7 +145,7 @@ namespace ChefKeys
                         return true;
                     }
 
-                    isLWinKeyDown = false;
+                    isWinKeyDown = false;
                     cancelAction = false;
 
                     return false;
@@ -220,7 +221,7 @@ namespace ChefKeys
             _isSimulatingKeyPress = true;
             keybd_event(VK_LWIN, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
             _isSimulatingKeyPress = false;
-            isLWinKeyDown = false;
+            isWinKeyDown = false;
             _isSimulatingKeyPress = true;
             keybd_event(VK_LALT, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
             _isSimulatingKeyPress = false;

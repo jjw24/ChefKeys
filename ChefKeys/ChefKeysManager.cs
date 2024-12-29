@@ -119,6 +119,10 @@ namespace ChefKeys
                     {
                         comboRecord.action?.Invoke();
 
+                        // This is needed because combo has a non-register key that triggers cancelSingleKeyAction to true,
+                        // this need to be reset for subsequent single key press.
+                        cancelSingleKeyAction = false;
+
                         return false;
                     }
                 }
@@ -159,6 +163,10 @@ namespace ChefKeys
                     if (comboRecord is not null)
                     {
                         comboRecord.action?.Invoke();
+
+                        // This is needed because combo has a non-register key that triggers cancelSingleKeyAction to true,
+                        // this need to be reset for subsequent single key press.
+                        cancelSingleKeyAction = false;
 
                         return false;
                     }

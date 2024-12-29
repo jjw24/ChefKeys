@@ -100,6 +100,8 @@ namespace ChefKeys
 
             if (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN)
             {
+                StartMenuBlocked = false;
+
                 registeredKeyDown = true;
 
                 lastRegisteredDownKey = vkCode;
@@ -129,7 +131,6 @@ namespace ChefKeys
                 if (lastRegisteredDownKey != vkCode)
                     cancelSingleKeyAction = true;
 
-                StartMenuBlocked = false;
                 if (vkCode == VK_LWIN || vkCode == VK_RWIN)
                 {
                     if (!cancelSingleKeyAction && isWinKeyDown)
@@ -181,6 +182,7 @@ namespace ChefKeys
             { 
                 nonRegisteredKeyDown = true;
                 lastRegisteredDownKey = vkCode;
+                StartMenuBlocked = false;
             }
 
             if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)

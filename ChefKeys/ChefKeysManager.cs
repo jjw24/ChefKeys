@@ -107,7 +107,20 @@ namespace ChefKeys
                 if (vkCode == VK_LWIN || vkCode == VK_RWIN)
                     isLWinKeyDown = true;
 
-                
+                // Non-modifier combos i.e. ending with a non-modifier key e.g. LeftAlt+Z
+                // can be handled with key down so it's triggered faster than waiting till key up
+                if (lastRegisteredDownKey == vkCode && !keyRecord.vkCodeIsModifierKey && keyRecord.AreKeyCombosRegistered())
+                {
+                    var comboRecord = GetComboRecord(keyRecord);
+
+                    if (comboRecord is not null)
+                    {
+                        comboRecord.action?.Invoke();
+                        cancelAction = false;
+
+                        return false;
+                    }
+                }
             }
 
             if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
@@ -139,25 +152,13 @@ namespace ChefKeys
 
                 // Modifier combos e.g. leftctrl+leftshift must be handled with key up to avoid triggering
                 // when additional modifier keys are pressed e.g. leftctrl+leftshift+leftalt or leftctrl+leftshift+s
-                if (lastRegisteredDownKey == vkCode && keyRecord.AreKeyCombosRegistered())
+                if (lastRegisteredDownKey == vkCode && keyRecord.AreKeyCombosRegistered() && keyRecord.vkCodeIsModifierKey)
                 {
-                    var triggerCombo = false;
+                    var comboRecord = GetComboRecord(keyRecord);
 
-                    KeyComboRecord comboFound = null;
-                    for (var index = 0; index < keyRecord.KeyComboRecords.Count; index++)
+                    if (comboRecord is not null)
                     {
-                        if (keyRecord.KeyComboRecords[index].AreComboKeysHeldDown())
-                        {
-                            comboFound = keyRecord.KeyComboRecords[index];
-                            triggerCombo = true;
-
-                            break;
-                        }
-                    }
-
-                    if (triggerCombo)
-                    {
-                        comboFound.action?.Invoke();
+                        comboRecord.action?.Invoke();
                         cancelAction = false;
 
                         return false;
@@ -193,6 +194,22 @@ namespace ChefKeys
                 cancelAction = true;
 
             return false;
+        }
+
+        private static KeyComboRecord GetComboRecord(KeyRecord keyRecord)
+        {
+            KeyComboRecord comboFound = null;
+            for (var index = 0; index < keyRecord.KeyComboRecords.Count; index++)
+            {
+                if (keyRecord.KeyComboRecords[index].AreComboKeysHeldDown())
+                {
+                    comboFound = keyRecord.KeyComboRecords[index];
+
+                    break;
+                }
+            }
+
+            return comboFound;
         }
 
         private static void BlockWindowsStartMenu()

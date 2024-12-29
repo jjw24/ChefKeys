@@ -7,7 +7,22 @@ namespace ChefKeys
 {
     internal record KeyRecord()
     {
-        internal int vk_code { get; set; }
+        private int vkcode;
+
+        internal int vk_code
+        {
+            get
+            {
+                return vkcode;
+            }
+            set
+            {
+                vkcode = value;
+                vkCodeIsModifierKey = IsModifierKeyCode(vk_code);
+            }
+        }
+
+        internal bool vkCodeIsModifierKey { get; set; } = false;
 
         internal List<KeyComboRecord> KeyComboRecords = new();
 
@@ -36,6 +51,31 @@ namespace ChefKeys
                         comboRaw = hotkey
                     });
 
+        }
+        private bool IsModifierKeyCode(int vk_code)
+        {
+            switch (vk_code)
+            {
+                case VK_LCTRL:
+                    return true;
+                case VK_RCTRL:
+                    return true;
+                case VK_LALT:
+                    return true;
+                case VK_RALT:
+                    return true;
+                case VK_LSHIFT:
+                    return true;
+                case VK_RSHIFT:
+                    return true;
+                case VK_LWIN:
+                    return true;
+                case VK_RWIN:
+                    return true;
+
+                default:
+                    return false;
+            }
         }
     };
 

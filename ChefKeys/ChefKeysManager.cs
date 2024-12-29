@@ -56,6 +56,7 @@ namespace ChefKeys
         private static bool nonRegisteredKeyDown = false;
         private static bool cancelAction = false;
         private static bool registeredKeyDown = false;
+        private static int lastRegisteredDownKey = 0;
 
         public static bool StartMenuEnableBlocking = false;
         public static bool StartMenuBlocked = false;
@@ -101,10 +102,44 @@ namespace ChefKeys
             {
                 registeredKeyDown = true;
 
+                lastRegisteredDownKey = vkCode;
+
                 if (vkCode == VK_LWIN || vkCode == VK_RWIN)
                     isLWinKeyDown = true;
 
-                if (keyRecord.AreKeyCombosRegistered())
+                
+            }
+
+            if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
+            {
+                registeredKeyDown = false;
+
+                if (lastRegisteredDownKey != vkCode)
+                    cancelAction = true;
+
+                StartMenuBlocked = false;
+                if (vkCode == VK_LWIN || vkCode == VK_RWIN)
+                {
+                    if (!cancelAction && isLWinKeyDown)
+                    {
+                        BlockWindowsStartMenu();
+
+                        StartMenuBlocked = true;
+
+                        keyRecord.action?.Invoke();
+
+                        return true;
+                    }
+
+                    isLWinKeyDown = false;
+                    cancelAction = false;
+
+                    return false;
+                }
+
+                // Modifier combos e.g. leftctrl+leftshift must be handled with key up to avoid triggering
+                // when additional modifier keys are pressed e.g. leftctrl+leftshift+leftalt or leftctrl+leftshift+s
+                if (lastRegisteredDownKey == vkCode && keyRecord.AreKeyCombosRegistered())
                 {
                     var triggerCombo = false;
 
@@ -128,31 +163,6 @@ namespace ChefKeys
                         return false;
                     }
                 }
-            }
-
-            if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
-            {
-                registeredKeyDown = false;
-
-                StartMenuBlocked = false;
-                if (vkCode == VK_LWIN || vkCode == VK_RWIN)
-                {
-                    if (!cancelAction && isLWinKeyDown)
-                    {
-                        BlockWindowsStartMenu();
-
-                        StartMenuBlocked = true;
-
-                        keyRecord.action?.Invoke();
-
-                        return true;
-                    }
-
-                    isLWinKeyDown = false;
-                    cancelAction = false;
-
-                    return false;
-                }
 
                 if (!cancelAction)
                 {
@@ -169,7 +179,10 @@ namespace ChefKeys
         private static bool HandleNonRegisteredKeyPress(IntPtr wParam, int vkCode, KeyRecord registeredKeyRecord)
         {
             if (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN)
+            { 
                 nonRegisteredKeyDown = true;
+                lastRegisteredDownKey = vkCode;
+            }
 
             if (wParam == (IntPtr)WM_KEYUP || wParam == (IntPtr)WM_SYSKEYUP)
                 nonRegisteredKeyDown = false;

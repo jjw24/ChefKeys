@@ -239,18 +239,21 @@ namespace ChefKeys
 
         #region key management
 
-        public static void RegisterHotkey(string hotkeys, Action action) => RegisterHotkey(hotkeys, hotkeys, action);
+        public static void RegisterHotkey(string hotkey, Action action) => RegisterHotkey(hotkey, hotkey, action);
 
-        public static void RegisterHotkey(string hotkeys, string previousHotkey, Action action)
+        public static void RegisterHotkey(string hotkey, string previousHotkey, Action action)
         {
-            hotkeys = ConvertIncorrectKeyString(hotkeys);
+            hotkey = ConvertIncorrectKeyString(hotkey);
             previousHotkey = ConvertIncorrectKeyString(previousHotkey);
 
             UnregisterHotkey(previousHotkey);
 
+            if (string.IsNullOrEmpty(hotkey))
+                return;
+
             // The released key need to be the unique key in the dictionary.
             // The last key in the combo is the release key that triggers action
-            var keys = SplitHotkeyReversed(hotkeys);
+            var keys = SplitHotkeyReversed(hotkey);
 
             var vkCodeCombo0 = keys.ElementAtOrDefault(1) is not null ? ToKeyCode(keys.ElementAtOrDefault(1)) : 0;
             var vkCodeCombo1 = keys.ElementAtOrDefault(2) is not null ? ToKeyCode(keys.ElementAtOrDefault(2)) : 0;
@@ -269,7 +272,7 @@ namespace ChefKeys
                 }
 
                 if (comboKeys)
-                    existingKeyRecord.RegisterKeyCombo(hotkeys, vk_code, action, vkCodeCombo0, vkCodeCombo1, vkCodeCombo2);
+                    existingKeyRecord.RegisterKeyCombo(hotkey, vk_code, action, vkCodeCombo0, vkCodeCombo1, vkCodeCombo2);
 
                 return;
             }
@@ -283,7 +286,7 @@ namespace ChefKeys
             };
 
             if (comboKeys)
-                keyRecord.RegisterKeyCombo(hotkeys, vk_code, action, vkCodeCombo0, vkCodeCombo1, vkCodeCombo2);
+                keyRecord.RegisterKeyCombo(hotkey, vk_code, action, vkCodeCombo0, vkCodeCombo1, vkCodeCombo2);
 
             registeredHotkeys.Add(ToKeyCode(keys.First()), keyRecord);
         }
@@ -316,7 +319,7 @@ namespace ChefKeys
 
         internal static KeyRecord GetRegisteredKeyRecord(string hotkey)
         {
-            if (!registeredHotkeys.TryGetValue(ToKeyCode(SplitHotkeyReversed(hotkey).First()), out var existingKeyRecord))
+            if (string.IsNullOrEmpty(hotkey) || !registeredHotkeys.TryGetValue(ToKeyCode(SplitHotkeyReversed(hotkey).First()), out var existingKeyRecord))
                 return null;
 
             var isComboString = IsComboString(hotkey);
@@ -353,11 +356,14 @@ namespace ChefKeys
             return KeyInterop.VirtualKeyFromKey((Key)Enum.Parse(typeof(Key), key));
         }
         
-        private static IEnumerable<string> SplitHotkeyReversed(string hotkeys)
-            => hotkeys.Split("+", StringSplitOptions.RemoveEmptyEntries).Reverse();
+        private static IEnumerable<string> SplitHotkeyReversed(string hotkey)
+            => hotkey.Split("+", StringSplitOptions.RemoveEmptyEntries).Reverse();
 
         private static string ConvertIncorrectKeyString(string hotkey)
         {
+            if (string.IsNullOrEmpty(hotkey))
+                return string.Empty;
+
             var keys = hotkey.Split("+", StringSplitOptions.RemoveEmptyEntries);
 
             var newHotkey = string.Empty;

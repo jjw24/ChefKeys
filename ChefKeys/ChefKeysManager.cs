@@ -364,7 +364,7 @@ namespace ChefKeys
             if (string.IsNullOrEmpty(hotkey))
                 return string.Empty;
 
-            var keys = hotkey.Split("+", StringSplitOptions.RemoveEmptyEntries);
+            var keys = hotkey.Split("+", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
             var newHotkey = string.Empty;
             foreach (var key in keys)
